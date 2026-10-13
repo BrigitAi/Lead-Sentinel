@@ -44,6 +44,7 @@ After every answer the explanation and reference (SANS standard, SDS section, ma
 | `supabase/schema.sql` | Database tables and access rules |
 | `supabase/sectors.sql` | Multiple sectors per competitor (run once after schema.sql) |
 | `supabase/sectors_edit.sql` | Lets players change their own sectors (run once after sectors.sql) |
+| `supabase/upload.sql` | Lets approvers upload their own questions (run once) |
 | `supabase/generate.sql` | Support for the question generator (run once after schema.sql) |
 | `supabase/functions/quiz-generate/index.ts` | Edge Function that writes new draft questions with AI |
 
@@ -67,6 +68,11 @@ Status (13 Oct 2026):
 - Done: 114 draft questions written from ASH's library (Fire Standards 23, SDS 22, Company Policies 25, Operational Manuals 23, Datasheets 21). They go live once approved on `review.html`.
 - To do: add the GitHub Pages address in Supabase → Authentication → URL Configuration (Site URL and Redirect URLs), or sign-in links won't return to the game.
 - To do: set up custom SMTP in Supabase → Authentication → Emails before rollout. The built-in mailer only sends a handful of sign-in emails per hour.
+
+## Approving and uploading questions
+On `review.html`, approvers can edit, approve or reject each draft, or click **Approve all** to approve every draft in the library being viewed (or all libraries).
+
+**Upload your own questions:** download the Excel template, fill in one question per row (library, question, correct answer, 3 wrong answers, explanation, reference), then upload the .xlsx or .csv file. A preview flags problems (unknown library, missing answers, duplicates) before anything is saved. Questions are added as drafts, or approved straight away if that box is ticked.
 
 ## Generating new questions
 Approvers see a **Generate new questions** panel at the top of `review.html`. They pick a library (or *All libraries*) and how many questions, then click **Generate**. The Edge Function picks unused, substantive passages from ASH's library, asks an AI model for one multiple-choice question per passage, and saves them as **drafts**. Nothing goes live until an approver approves it. Each passage is used only once.
