@@ -40,6 +40,7 @@ After every answer the explanation and reference (SANS standard, SDS section, ma
 | `review.html` | Question approval page for approvers |
 | `supabase/schema.sql` | Database tables and access rules |
 | `supabase/sectors.sql` | Multiple sectors per competitor (run once after schema.sql) |
+| `supabase/sectors_edit.sql` | Lets players change their own sectors (run once after sectors.sql) |
 | `supabase/generate.sql` | Support for the question generator (run once after schema.sql) |
 | `supabase/functions/quiz-generate/index.ts` | Edge Function that writes new draft questions with AI |
 
@@ -54,7 +55,7 @@ The game runs **offline** (sample questions, scores per device) until `config.js
 
 - **Questions** come from `quiz_questions`. Only questions with status *approved* are played.
 - **Results** go to `quiz_results`, and every competitor sees one shared league table.
-- **Accounts:** players **register once** with their Brigit email and a password, then confirm with a code emailed to them. After that they sign in with email + password (browsers offer to save it, and players stay signed in). **Forgot password** emails a code to set a new one. Only `@brigit.co.za` addresses are accepted, plus the admin addresses in `config.js` (`adminEmails`), which must also be approvers. First-timers choose a display name and one or more sectors, which are fixed after that. An admin can change them in Supabase (`quiz_profiles.sectors`).
+- **Accounts:** players **register once** with their Brigit email and a password, then confirm with a code emailed to them. After that they sign in with email + password (browsers offer to save it, and players stay signed in). **Forgot password** emails a code to set a new one. Only `@brigit.co.za` addresses are accepted, plus the admin addresses in `config.js` (`adminEmails`), which must also be approvers. First-timers choose a display name and one or more sectors. The name is fixed; players can change their sectors any time with **Change my sectors** (races already played keep their sector).
 - **Email templates:** in Supabase → Authentication → Emails, the *Confirm signup* and *Reset password* templates must include `{{ .Token }}` so the email shows the code.
 - **Approvers** (listed in `quiz_approvers`) get a *Review questions* button that opens `review.html`. There they can edit, approve or reject draft questions.
 

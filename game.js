@@ -184,6 +184,7 @@
       $("#player").value = profile.display_name;
       $("#player").disabled = true;
       $("#account").hidden = false;
+      $("#edit-sectors").hidden = false;
       $("#acct-email").textContent = user.email;
       $("#review-link").hidden = !isApprover;
     } else {
@@ -567,6 +568,26 @@
     setTimeout(() => location.reload(), 600);
   }
 
+  function syncAll() {
+    const boxes = [...document.querySelectorAll("#pf-list input")], n = boxes.filter(b => b.checked).length;
+    $("#pf-all").checked = n === boxes.length;
+    $("#pf-all").indeterminate = n > 0 && n < boxes.length;
+  }
+
+  // Change sectors later (name stays fixed). Past races keep the sector they were played for.
+  function editSectors(e) {
+    if (e) e.preventDefault();
+    const mine = mySectors();
+    document.querySelectorAll("#pf-list input").forEach(b => { b.checked = mine.includes(b.value); });
+    syncAll();
+    $("#pf-title").textContent = "Your sectors";
+    $("#pf-intro").textContent = "Tick every sector you work in. Races you've already played keep the sector they were played for.";
+    $("#pf-name").value = profile.display_name; $("#pf-name").disabled = true;
+    $("#pf-save").textContent = "Save sectors";
+    $("#pf-cancel-row").hidden = false; $("#pf-review").hidden = true; $("#pf-msg").textContent = "";
+    show("profile");
+  }
+
   async function saveProfile() {
     const name = $("#pf-name").value.trim();
     const sectors = [...document.querySelectorAll("#pf-list input:checked")].map(i => i.value);
@@ -574,6 +595,14 @@
     if (!sectors.length) { $("#pf-msg").textContent = "Tick at least one sector."; return; }
     $("#pf-msg").textContent = "";
     $("#pf-save").disabled = true;
+    if (profile) {                                   // editing sectors
+      const main = sectors.includes(profile.sector) ? profile.sector : sectors[0];
+      const { data, error } = await db.from("quiz_profiles").update({ sector: main, sectors }).eq("user_id", user.id).select().single();
+      $("#pf-save").disabled = false;
+      if (error || !data) { $("#pf-msg").textContent = "Couldn't save: " + (error ? error.message : "no permission (run supabase/sectors_edit.sql)"); return; }
+      profile = data;
+      return renderHome();
+    }
     const { data, error } = await db.from("quiz_profiles").insert({ user_id: user.id, display_name: name, sector: sectors[0], sectors }).select().single();
     $("#pf-save").disabled = false;
     if (error) { $("#pf-msg").textContent = "Couldn't save: " + error.message; return; }
@@ -620,11 +649,9 @@
     $("#pf-list").innerHTML = SECTORS.map(n => `<label><input type="checkbox" value="${esc(n)}"> ${esc(n)}</label>`).join("");
     const boxes = () => [...document.querySelectorAll("#pf-list input")];
     $("#pf-all").onchange = () => { boxes().forEach(b => { b.checked = $("#pf-all").checked; }); };
-    $("#pf-list").onchange = () => {
-      const n = boxes().filter(b => b.checked).length;
-      $("#pf-all").checked = n === boxes().length;
-      $("#pf-all").indeterminate = n > 0 && n < boxes().length;
-    };
+    $("#pf-list").onchange = syncAll;
+    $("#edit-sectors").onclick = editSectors;
+    $("#pf-cancel").onclick = e => { e.preventDefault(); renderHome(); };
 
     const { data: { session } } = await db.auth.getSession();
     if (!session) { $("#loading").hidden = true; show("login"); return setMode("signin"); }

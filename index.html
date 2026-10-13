@@ -70,6 +70,7 @@
   .shake { animation: shake .4s; border-color: var(--bad) !important; }
   @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
   .play-for { display: grid; gap: 4px; }
+  .play-for span a { text-transform: none; letter-spacing: 0; margin-left: 8px; font-size: 12px; }
   .play-for span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
   .board-sector { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--pitch); color: var(--text); font-size: 13px; max-width: 200px; }
   .sec-pick { border: 2px solid var(--line); border-radius: 12px; background: var(--pitch); padding: 10px 14px 12px; margin: 0; text-align: left; }
@@ -323,8 +324,8 @@
 
   <!-- ===== FIRST-TIME PROFILE (online mode) ===== -->
   <section id="profile" class="screen gate" hidden>
-    <h1>Join the league</h1>
-    <p class="muted">This is how you'll appear on the leaderboard. Tick every sector you work in. Each race counts for the sector you play it for. Sectors can't be changed later, so choose carefully.</p>
+    <h1 id="pf-title">Join the league</h1>
+    <p class="muted" id="pf-intro">This is how you'll appear on the leaderboard. Tick every sector you work in. Each race counts for the sector you play it for. You can change your sectors later.</p>
     <div class="gate-form col">
       <input id="pf-name" placeholder="Display name" maxlength="30" aria-label="Display name">
       <fieldset class="sec-pick" id="pf-sectors">
@@ -333,6 +334,7 @@
         <div id="pf-list" class="sec-list"></div>
       </fieldset>
       <button class="btn go" id="pf-save">Enter the league</button>
+      <p class="auth-links" id="pf-cancel-row" hidden><a href="#" id="pf-cancel">Cancel</a></p>
     </div>
     <p id="pf-msg" class="login-msg bad-t"></p>
     <p id="pf-review" class="muted" hidden>Here as an approver only? <a href="review.html">Go straight to question review →</a></p>
@@ -357,7 +359,7 @@
     <div class="player-bar">
       <div class="who">
         <input id="player" placeholder="Your name" maxlength="30" autocomplete="name" aria-label="Your name">
-        <label class="play-for"><span>Playing for</span><select id="sector" aria-label="Sector you are playing for"></select></label>
+        <label class="play-for"><span>Playing for <a href="#" id="edit-sectors" hidden>Change my sectors</a></span><select id="sector" aria-label="Sector you are playing for"></select></label>
       </div>
       <div id="me" class="me" hidden></div>
     </div>
