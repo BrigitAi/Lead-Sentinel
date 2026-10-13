@@ -62,9 +62,10 @@ $$;
 
 -- ---------- Helper: is the signed-in user a Brigit email? ----------
 -- Enforced inside the quiz tables only, so other apps in this project are unaffected.
+-- Approvers (admins) are allowed in even with a non-Brigit email address.
 create or replace function public.quiz_is_brigit()
 returns boolean language sql stable as $$
-  select lower(coalesce(auth.jwt() ->> 'email', '')) like '%@brigit.co.za';
+  select lower(coalesce(auth.jwt() ->> 'email', '')) like '%@brigit.co.za' or public.quiz_is_approver();
 $$;
 
 -- ---------- Row level security ----------
@@ -113,5 +114,7 @@ revoke all on public.quiz_results_board from anon;
 insert into public.quiz_approvers (email, name) values
   ('donald@brigit.co.za', 'Donald'),
   ('corne@brigit.co.za',  'Corne'),
-  ('feri@brigit.co.za',   'Feri')
+  ('feri@brigit.co.za',   'Feri'),
+  ('brigitai@brigit.co.za', 'Brigit AI (testing)'),
+  ('sysproai@elveygroup.com', 'Admin (Elvey Group)')
 on conflict (email) do update set name = excluded.name;
