@@ -10,5 +10,8 @@
 window.QUIZ_CONFIG = {
   supabaseUrl: "https://sxxfuxwgxeitvkbtywhp.supabase.co",
   supabaseAnonKey: "sb_publishable_2cHhIpWBoWqdavlzF9SukA_G_HG03GE",   // publishable key: safe in a browser
-  emailDomain: "brigit.co.za"
+  emailDomain: "brigit.co.za",
+  // Admins who may sign in with a non-Brigit address. They must also be listed
+  // in the quiz_approvers table, or the database will not let them in.
+  adminEmails: ["sysproai@elveygroup.com"]
 };
