@@ -50,6 +50,15 @@
   .up-scroll { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; margin-top: 10px; }
   .up-scroll .up-table { margin-top: 0; }
   #approve-all { margin-left: auto; }
+  #pl-panel summary { cursor: pointer; list-style: none; }
+  #pl-panel summary::-webkit-details-marker { display: none; }
+  #pl-panel summary::before { content: "▸ "; color: var(--icon); }
+  #pl-panel[open] summary::before { content: "▾ "; }
+  #pl-search { min-width: 220px; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .pill.ok { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+  .pill.warn { background: color-mix(in srgb, var(--bad-text) 18%, transparent); color: var(--bad-text); }
+  .pill.idle { background: color-mix(in srgb, var(--muted) 18%, transparent); color: var(--muted); }
   #req-panel summary { cursor: pointer; list-style: none; }
   #req-panel summary::-webkit-details-marker { display: none; }
   #req-panel summary::before { content: "▸ "; color: var(--icon); }
@@ -133,6 +142,24 @@
       </div>
       <p id="up-msg" class="muted gen-msg"></p>
     </details>
+    <details class="gen" id="pl-panel">
+      <summary><h2 style="display:inline">Registered players</h2> <span class="muted" id="pl-sum"></span></summary>
+      <div class="gen-row" style="margin-top:10px">
+        <select id="pl-filter" aria-label="Show">
+          <option value="all">Everyone registered</option>
+          <option value="unconfirmed">Haven't confirmed their email</option>
+          <option value="nojoin">Haven't joined the league</option>
+          <option value="noplay">Joined but haven't played</option>
+          <option value="nopolicies">Haven't done Company Policies</option>
+          <option value="active">Playing</option>
+        </select>
+        <input id="pl-search" type="search" placeholder="Search name or email" aria-label="Search players">
+        <button class="btn" id="pl-csv" type="button">Download list (CSV)</button>
+        <button class="btn" id="pl-refresh" type="button">Refresh</button>
+      </div>
+      <p id="pl-msg" class="muted gen-msg"></p>
+      <div class="up-scroll"><table class="req-table" style="margin-top:0"><thead><tr><th>Email</th><th>League name</th><th>Sectors</th><th>Registered</th><th>Status</th><th>Races</th><th>Points</th><th>Last played</th></tr></thead><tbody id="pl-list"></tbody></table></div>
+    </details>
     <details class="gen" id="req-panel">
       <summary><h2 style="display:inline">Required race: who has completed it</h2> <span class="muted" id="req-sum"></span></summary>
       <div class="gen-row" style="margin-top:10px">
@@ -198,6 +225,11 @@
       LIBS.filter(l => l.id !== "certification").map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join("");
     $("#gen-go").onclick = generate;
     $("#req-filter").onchange = renderRequired;
+    $("#pl-filter").onchange = renderPlayers;
+    $("#pl-search").oninput = renderPlayers;
+    $("#pl-csv").onclick = downloadPlayers;
+    $("#pl-refresh").onclick = loadPlayers;
+    loadPlayers();
     $("#approve-all").onclick = approveAll;
     $("#up-lib").innerHTML = `<option value="">Library: from the file</option>` +
       LIBS.map(l => `<option value="${esc(l.id)}">Library for every row: ${esc(l.name)}</option>`).join("");
@@ -272,6 +304,59 @@
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = "company-policies-completion.csv"; a.click();
+  }
+
+  /* ---------- Registered players (approvers only, via quiz_registered_players) ---------- */
+  let players = [];
+  const sa = d => d ? new Date(d).toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+  const saDay = d => d ? new Date(d).toLocaleDateString("en-ZA", { timeZone: "Africa/Johannesburg", day: "numeric", month: "short", year: "numeric" }) : "–";
+  function plStatus(p) {
+    if (!p.email_confirmed) return ["warn", "Email not confirmed"];
+    if (!p.league_name) return ["warn", "Not joined yet"];
+    if (!p.races_played) return ["idle", "Joined, not played"];
+    return ["ok", "Playing"];
+  }
+  async function loadPlayers() {
+    $("#pl-msg").textContent = "Loading…"; $("#pl-msg").style.color = "";
+    const { data, error } = await db.rpc("quiz_registered_players");
+    if (error) {
+      $("#pl-msg").style.color = "var(--bad-text)";
+      $("#pl-msg").textContent = /does not exist|could not find/i.test(error.message)
+        ? "Run supabase/players.sql once in Supabase to switch this list on." : "Couldn't load players: " + error.message;
+      $("#pl-sum").textContent = ""; $("#pl-list").innerHTML = ""; return;
+    }
+    players = data || [];
+    $("#pl-msg").textContent = "";
+    const joined = players.filter(p => p.league_name).length, playing = players.filter(p => p.races_played > 0).length;
+    $("#pl-sum").textContent = `${players.length} registered · ${joined} joined · ${playing} playing`;
+    renderPlayers();
+  }
+  function plRows() {
+    const f = $("#pl-filter").value, q = $("#pl-search").value.trim().toLowerCase();
+    return players.filter(p =>
+      (f === "all" || (f === "unconfirmed" && !p.email_confirmed) || (f === "nojoin" && p.email_confirmed && !p.league_name)
+        || (f === "noplay" && p.league_name && !p.races_played) || (f === "nopolicies" && !p.did_company_policies)
+        || (f === "active" && p.races_played > 0))
+      && (!q || (p.email || "").toLowerCase().includes(q) || (p.league_name || "").toLowerCase().includes(q)));
+  }
+  function renderPlayers() {
+    const rows = plRows();
+    $("#pl-list").innerHTML = rows.length ? rows.map(p => {
+      const [cls, label] = plStatus(p);
+      return `<tr><td>${esc(p.email)}</td><td>${esc(p.league_name || "–")}</td><td class="muted">${esc(p.sectors || "–")}</td>
+        <td>${saDay(p.registered_at)}</td><td><span class="pill ${cls}">${label}</span>${p.did_company_policies ? ` <span class="pill ok" title="Completed Company Policies">✓ Policies</span>` : ""}</td>
+        <td>${p.races_played}</td><td>${Number(p.points).toLocaleString("en-ZA")}</td><td>${saDay(p.last_played)}</td></tr>`;
+    }).join("") : `<tr><td colspan="8" class="muted">Nobody in this list.</td></tr>`;
+  }
+  function downloadPlayers() {
+    const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const head = ["Email", "League name", "Sectors", "Registered (SA time)", "Email confirmed", "Joined league", "Status", "Races played", "Points", "Last played (SA time)", "Last sign-in (SA time)", "Completed Company Policies"];
+    const lines = plRows().map(p => [p.email, p.league_name || "", p.sectors || "", sa(p.registered_at), p.email_confirmed ? "Yes" : "No",
+      p.league_name ? "Yes" : "No", plStatus(p)[1], p.races_played, p.points, sa(p.last_played), sa(p.last_sign_in), p.did_company_policies ? "Yes" : "No"].map(q).join(","));
+    const csv = "\ufeff" + [head.map(q).join(","), ...lines].join("\r\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = `trivia-registered-players-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
   }
 
   /* ---------- Approve all drafts in the current view ---------- */

@@ -45,6 +45,7 @@ After every answer the explanation and reference (SANS standard, SDS section, ma
 | `supabase/sectors.sql` | Multiple sectors per competitor (run once after schema.sql) |
 | `supabase/sectors_edit.sql` | Lets players change their own sectors (run once after sectors.sql) |
 | `supabase/upload.sql` | Lets approvers upload their own questions (run once) |
+| `supabase/players.sql` | Registered players list for approvers on review.html (run once) |
 | `supabase/stats.sql` | Stats views for ASH and reports, plus the per-answer log (run once) |
 | `supabase/generate.sql` | Support for the question generator (run once after schema.sql) |
 | `supabase/functions/quiz-generate/index.ts` | Edge Function that writes new draft questions with AI |
@@ -69,6 +70,9 @@ Status (13 Oct 2026):
 - Done: 114 draft questions written from ASH's library (Fire Standards 23, SDS 22, Company Policies 25, Operational Manuals 23, Datasheets 21). They go live once approved on `review.html`.
 - To do: add the GitHub Pages address in Supabase → Authentication → URL Configuration (Site URL and Redirect URLs), or sign-in links won't return to the game.
 - To do: set up custom SMTP in Supabase → Authentication → Emails before rollout. The built-in mailer only sends a handful of sign-in emails per hour.
+
+## Registered players
+Approvers see a **Registered players** section on `review.html`: everyone who registered with a Brigit email, whether they confirmed their email, joined the league, have played, and have done Company Policies. Filter, search, and **Download list (CSV)**. Needs `supabase/players.sql` (run once).
 
 ## Approving and uploading questions
 On `review.html`, approvers can edit, approve or reject each draft, or click **Approve all** to approve every draft in the library being viewed (or all libraries).
