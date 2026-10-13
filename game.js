@@ -71,13 +71,13 @@
     const rows = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await db.from("quiz_results_board")
-        .select("created_at, points, correct, asked, user_id, display_name, sector")
+        .select("created_at, points, correct, asked, user_id, display_name, sector, library")
         .order("created_at", { ascending: true }).range(from, from + 999);
       if (error) { console.error(error); break; }
       rows.push(...data);
       if (data.length < 1000) break;
     }
-    GAMES = rows.map(r => ({ pid: r.user_id, name: r.display_name, sector: r.sector, points: r.points, correct: r.correct, asked: r.asked, date: r.created_at }));
+    GAMES = rows.map(r => ({ pid: r.user_id, name: r.display_name, sector: r.sector, library: r.library, points: r.points, correct: r.correct, asked: r.asked, date: r.created_at }));
   }
 
   async function saveGame(g) {
@@ -151,15 +151,21 @@
 
   const rankOf = (list, k) => { const i = list.findIndex(p => p.key === k); return i < 0 ? null : i + 1; };
 
+  /* ---------------- Required races (e.g. Company Policies) ---------------- */
+  const REQUIRED = CATS.filter(c => c.required && !c.comingSoon);
+  const doneRace = (catId, pid = myPid()) => loadGames().some(g => pidOf(g) === pid && g.library === catId);
+  const missingRequired = () => REQUIRED.filter(c => !doneRace(c.id));
+
   /* ---------------- Home ---------------- */
-  function card(id, ic, name, desc, n, soon, waiting) {
+  function card(id, ic, name, desc, n, soon, waiting, required) {
     const off = n === 0 || soon;
+    const badge = !required ? "" : doneRace(id) ? `<span class="req done">✓ Completed</span>` : `<span class="req">Required</span>`;
     const status = soon ? "Coming soon"
       : n > 0 ? n + " question" + (n === 1 ? "" : "s")
       : isApprover && waiting ? `${waiting} waiting for approval`
       : isApprover ? "No questions yet. Generate some in Review"
       : "Questions on the way";
-    return `<button class="cat" data-cat="${esc(id)}" ${off ? "disabled" : ""}>
+    return `<button class="cat${required ? " required" : ""}" data-cat="${esc(id)}" ${off ? "disabled" : ""}>${badge}
       <span class="icon">${icon(ic || "flame")}</span>
       <span class="cname">${esc(name)}</span>
       <span class="cdesc">${esc(desc || "")}</span>
@@ -195,12 +201,26 @@
     const allWaiting = Object.values(DRAFTS).reduce((a, b) => a + b, 0);
     $("#cats").innerHTML = (isApprover && total === 0 && allWaiting
         ? `<p class="approve-note">No questions are approved yet, so the races are closed. <a href="review.html">Approve questions in Review →</a></p>` : "") +
-      CATS.map(c => card(c.id, c.icon, c.name, c.description, c.questions.length, c.comingSoon, DRAFTS[c.id] || 0)).join("") +
+      requiredNote() +
+      [...CATS].sort((a, b) => (b.required ? 1 : 0) - (a.required ? 1 : 0))
+        .map(c => card(c.id, c.icon, c.name, c.description, c.questions.length, c.comingSoon, DRAFTS[c.id] || 0, c.required)).join("") +
       card("mixed", "extinguisher", "Mixed Bag", "A bit of everything", total, false, allWaiting);
     $("#cats").querySelectorAll("button[data-cat]").forEach(b => { b.onclick = () => start(b.dataset.cat); });
+    $("#cats").querySelectorAll("[data-start]").forEach(b => { b.onclick = () => start(b.dataset.start); });
     renderMe();
     renderBoard();
     show("home");
+  }
+
+  function requiredNote() {
+    if (!$("#player").value.trim()) return "";
+    return missingRequired().map(c => {
+      const open = c.questions.length > 0;
+      return `<div class="req-note"><span class="icon">${icon(c.icon || "shieldFlame")}</span>
+        <div><b>Required for everyone:</b> finish the ${esc(c.name)} race at least once.
+        ${open ? "" : `<br><small>It opens as soon as its questions are approved.</small>`}</div>
+        ${open ? `<button class="btn go small" data-start="${esc(c.id)}">Start now</button>` : ""}</div>`;
+    }).join("");
   }
 
   function renderMe() {
@@ -281,7 +301,7 @@
     const pid = myPid(), k = entryKey(pid, sector);
     const meBefore = before.find(p => p.key === k);
 
-    st = { pid, key: k, library: catId, name, sector, catName, qs, i: 0, score: 0, streak: 0, bestStreak: 0, log: [], locked: false, rankBefore: rankOf(before, k), pbBefore: meBefore ? meBefore.best : null };
+    st = { pid, key: k, library: catId, name, sector, catName, qs, i: 0, score: 0, streak: 0, bestStreak: 0, log: [], locked: false, rankBefore: rankOf(before, k), pbBefore: meBefore ? meBefore.best : null, reqBefore: doneRace(catId) };
     $("#hud-cat").textContent = catName;
     show("game");
     renderQ();
@@ -422,6 +442,8 @@
       $("#r-sector").innerHTML = `These points count for <b>${esc(st.sector)}</b> — currently <b>#${sr}</b> of ${secs.length} sectors`;
     } else $("#r-sector").textContent = "";
 
+    const reqCat = REQUIRED.find(c => c.id === st.library);
+    if (reqCat && st.reqBefore === false) $("#r-sector").innerHTML += `<br><span class="good-t">✓ ${esc(reqCat.name)} requirement completed. Thank you!</span>`;
     const missed = st.log.filter(l => !l.right);
     $("#review").innerHTML = missed.length
       ? `<h3>Training review — what you missed</h3>` + missed.map(m => `<div class="rev">

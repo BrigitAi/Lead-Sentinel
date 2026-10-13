@@ -142,6 +142,15 @@
   .gate-form input, .gate-form select { flex: 1; padding: 14px 16px; border-radius: 12px; border: 2px solid var(--line); background: var(--pitch); color: var(--text); font-size: 16px; }
   .gate-form input:focus, .gate-form select:focus { outline: none; border-color: var(--brand); }
   .login-msg { min-height: 1.4em; margin-top: 14px; }
+  .cat { position: relative; }
+  .cat .req { position: absolute; top: 12px; right: 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border-radius: 999px; background: var(--icon); color: #fff; }
+  .cat .req.done { background: color-mix(in srgb, var(--good) 20%, transparent); color: var(--good); }
+  .cat.required:not([disabled]) { border-color: color-mix(in srgb, var(--icon) 55%, var(--line)); }
+  .req-note { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--icon); background: color-mix(in srgb, var(--icon) 10%, var(--panel)); }
+  .req-note .icon { color: var(--icon); width: 30px; height: 30px; flex: none; }
+  .req-note .icon svg { width: 30px; height: 30px; }
+  .req-note div { flex: 1; font-size: 14px; }
+  .req-note small { color: var(--muted); }
   .approve-note { grid-column: 1 / -1; margin: 0 0 4px; padding: 10px 14px; border: 1px dashed var(--icon); border-radius: 12px; color: var(--text); font-size: 14px; }
   .auth-tabs { display: inline-flex; background: var(--pitch); border: 1px solid var(--line); border-radius: 10px; padding: 3px; margin-top: 14px; }
   .auth-tab { border: 0; background: none; color: var(--muted); padding: 8px 22px; border-radius: 8px; font-family: var(--head); text-transform: uppercase; letter-spacing: .05em; font-size: 15px; cursor: pointer; }

@@ -23,6 +23,9 @@ Technical Johannesburg · Exports · Passive Fire Containment · Special Risk ·
 - **Sectors:** total points, players, games, accuracy
 - Filters: This week / This month / All time
 
+## Required race: Company Policies
+Company Policies is not a sector. It's a race **everyone must finish at least once**. It's pinned first with a *Required* badge, and players who haven't finished it see a reminder with a **Start now** button. Approvers see who has and hasn't completed it on `review.html` (with a CSV download). Mark any other category as required with `required: true` in `questions.js`.
+
 ## Training element
 After every answer the explanation and reference (SANS standard, SDS section, manual) are shown. At full time, players get a review of every question they missed.
 

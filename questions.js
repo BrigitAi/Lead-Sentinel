@@ -100,6 +100,7 @@ window.QUIZ_CATEGORIES = [
   {
     id: "policies",
     name: "Company Policies",
+    required: true,            // everyone must finish this race at least once
     icon: "shieldFlame",
     description: "Who we are and how we work",
     questions: [

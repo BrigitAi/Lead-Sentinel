@@ -35,6 +35,15 @@
   .gen-row { display: flex; gap: 10px; flex-wrap: wrap; }
   .btn.go { background: var(--brand); border-color: var(--brand); color: var(--ink); }
   .btn.go:hover:not(:disabled) { background: var(--brand-d); }
+  #req-panel summary { cursor: pointer; list-style: none; }
+  #req-panel summary::-webkit-details-marker { display: none; }
+  #req-panel summary::before { content: "▸ "; color: var(--icon); }
+  #req-panel[open] summary::before { content: "▾ "; }
+  .req-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
+  .req-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 6px 8px; }
+  .req-table td { padding: 8px; border-top: 1px solid var(--line); vertical-align: top; }
+  .req-table .no { color: var(--bad-text); font-weight: 600; }
+  .req-table .yes { color: var(--good); font-weight: 600; }
   .gen-msg { min-height: 1.3em; font-size: 14px; }
   .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
   .tabs { display: flex; background: var(--pitch); border-radius: 10px; padding: 3px; }
@@ -93,6 +102,18 @@
       </div>
       <p id="gen-msg" class="muted gen-msg"></p>
     </div>
+    <details class="gen" id="req-panel">
+      <summary><h2 style="display:inline">Required race: who has completed it</h2> <span class="muted" id="req-sum"></span></summary>
+      <div class="gen-row" style="margin-top:10px">
+        <select id="req-filter" aria-label="Show">
+          <option value="all">Everyone</option>
+          <option value="todo" selected>Not completed yet</option>
+          <option value="done">Completed</option>
+        </select>
+        <button class="btn" id="req-csv" type="button">Download list (CSV)</button>
+      </div>
+      <table class="req-table"><thead><tr><th>Competitor</th><th>Sectors</th><th>Completed</th><th>Best score</th></tr></thead><tbody id="req-list"></tbody></table>
+    </details>
     <div class="bar">
       <div class="tabs" id="status-tabs">
         <button class="tab on" data-status="draft">Drafts</button>
@@ -144,6 +165,9 @@
     $("#gen-lib").innerHTML = `<option value="all">All libraries</option>` +
       LIBS.filter(l => l.id !== "certification").map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join("");
     $("#gen-go").onclick = generate;
+    $("#req-filter").onchange = renderRequired;
+    $("#req-csv").onclick = downloadRequired;
+    loadRequired();
     reload();
   }
 
@@ -167,6 +191,47 @@
       (detail.skipped ? `. ${detail.skipped} passage${detail.skipped === 1 ? " was" : "s were"} skipped as unsuitable.` : ".") +
       ((detail.errors || []).length ? ` Some libraries failed: ${detail.errors.join("; ")}` : "");
     if (status === "draft") reload();
+  }
+
+  /* Who has finished the required race(s), e.g. Company Policies */
+  const REQ = (window.QUIZ_CATEGORIES || []).filter(c => c.required).map(c => ({ id: c.id, name: c.name }));
+  let reqRows = [];
+  async function loadRequired() {
+    if (!REQ.length) { $("#req-panel").hidden = true; return; }
+    const req = REQ[0];
+    $("#req-panel summary h2").textContent = `Required race: ${req.name}`;
+    const [{ data: profs }, { data: res }] = await Promise.all([
+      db.from("quiz_profiles").select("user_id, display_name, sectors, sector").limit(5000),
+      db.from("quiz_results_board").select("user_id, created_at, points").eq("library", req.id).limit(20000)
+    ]);
+    const done = new Map();
+    (res || []).forEach(r => {
+      const d = done.get(r.user_id) || { first: r.created_at, best: 0 };
+      if (r.created_at < d.first) d.first = r.created_at;
+      d.best = Math.max(d.best, r.points);
+      done.set(r.user_id, d);
+    });
+    reqRows = (profs || []).map(p => ({ name: p.display_name, sectors: (p.sectors && p.sectors.length ? p.sectors : [p.sector]).join(", "), ...(done.get(p.user_id) || {}) }))
+      .sort((a, b) => (a.first ? 1 : 0) - (b.first ? 1 : 0) || a.name.localeCompare(b.name));
+    const n = reqRows.filter(r => r.first).length;
+    $("#req-sum").textContent = `${n} of ${reqRows.length} competitor${reqRows.length === 1 ? "" : "s"} completed`;
+    renderRequired();
+  }
+  function renderRequired() {
+    const f = $("#req-filter").value;
+    const rows = reqRows.filter(r => f === "all" || (f === "done") === !!r.first);
+    const day = d => new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
+    $("#req-list").innerHTML = rows.length ? rows.map(r => `<tr><td>${esc(r.name)}</td><td class="muted">${esc(r.sectors)}</td>
+      <td class="${r.first ? "yes" : "no"}">${r.first ? "✓ " + day(r.first) : "Not yet"}</td><td>${r.first ? r.best.toLocaleString("en-ZA") : "–"}</td></tr>`).join("")
+      : `<tr><td colspan="4" class="muted">Nobody in this list.</td></tr>`;
+  }
+  function downloadRequired() {
+    const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csv = ["Competitor,Sectors,Completed,First completed,Best score"].concat(reqRows.map(r =>
+      [r.name, r.sectors, r.first ? "Yes" : "No", r.first ? r.first.slice(0, 10) : "", r.first ? r.best : ""].map(q).join(","))).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = "company-policies-completion.csv"; a.click();
   }
 
   function reload() { offset = 0; $("#list").innerHTML = ""; load(true); }
