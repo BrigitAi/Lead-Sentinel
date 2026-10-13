@@ -23,6 +23,7 @@
   const ONLINE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey && window.supabase);
   const db = ONLINE ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, { auth: { flowType: "implicit", persistSession: true, detectSessionInUrl: true } }) : null;
   const EMAIL_DOMAIN = (CFG.emailDomain || "brigit.co.za").toLowerCase();
+  const ADMIN_EMAILS = (CFG.adminEmails || []).map(e => String(e).trim().toLowerCase());
   let user = null, profile = null, isApprover = false, GAMES = [];
 
   /* ---------------- Fire-protection icon set ---------------- */
@@ -426,7 +427,7 @@
   async function sendLink() {
     const email = $("#login-email").value.trim().toLowerCase();
     const msg = $("#login-msg");
-    if (!email.endsWith("@" + EMAIL_DOMAIN)) { msg.textContent = `Use your @${EMAIL_DOMAIN} email address.`; msg.className = "login-msg bad-t"; return; }
+    if (!email.endsWith("@" + EMAIL_DOMAIN) && !ADMIN_EMAILS.includes(email)) { msg.textContent = `Use your @${EMAIL_DOMAIN} email address.`; msg.className = "login-msg bad-t"; return; }
     $("#login-send").disabled = true; msg.textContent = "Sending…"; msg.className = "login-msg muted";
     const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split("#")[0].split("?")[0] } });
     $("#login-send").disabled = false;
@@ -469,7 +470,10 @@
     if (!session) { $("#loading").hidden = true; return show("login"); }
     user = session.user;
     const { data: prof } = await db.from("quiz_profiles").select("*").eq("user_id", user.id).maybeSingle();
-    if (!prof) { $("#loading").hidden = true; $("#pf-name").value = (user.email.split("@")[0] || "").replace(/[._-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase()); return show("profile"); }
+    if (!prof) {
+      const { data: appr } = await db.rpc("quiz_is_approver");
+      $("#pf-review").hidden = !appr;
+      $("#loading").hidden = true; $("#pf-name").value = (user.email.split("@")[0] || "").replace(/[._-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase()); return show("profile"); }
     profile = prof;
     await enterGame();
   }
