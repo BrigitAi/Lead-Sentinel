@@ -21,6 +21,7 @@
   /* ---------------- Online mode (Supabase) ---------------- */
   const CFG = window.QUIZ_CONFIG || {};
   const ONLINE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey && window.supabase);
+  const FROM_RESET_LINK = /type=recovery/.test(location.hash);   // read before Supabase clears the address
   const db = ONLINE ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, { auth: { flowType: "implicit", persistSession: true, detectSessionInUrl: true } }) : null;
   const EMAIL_DOMAIN = (CFG.emailDomain || "brigit.co.za").toLowerCase();
   const ADMIN_EMAILS = (CFG.adminEmails || []).map(e => String(e).trim().toLowerCase());
@@ -441,30 +442,121 @@
   });
 
   /* ---------------- Sign-in (online mode) ---------------- */
-  async function sendLink() {
-    const email = $("#login-email").value.trim().toLowerCase();
-    const msg = $("#login-msg");
-    if (!email.endsWith("@" + EMAIL_DOMAIN) && !ADMIN_EMAILS.includes(email)) { msg.textContent = `Use your @${EMAIL_DOMAIN} email address.`; msg.className = "login-msg bad-t"; return; }
-    $("#login-send").disabled = true; msg.textContent = "Sending…"; msg.className = "login-msg muted";
-    const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split("#")[0].split("?")[0] } });
-    $("#login-send").disabled = false;
-    if (error) { msg.textContent = "Couldn't send the link: " + error.message; msg.className = "login-msg bad-t"; return; }
-    msg.innerHTML = `Check <b>${esc(email)}</b> for your sign-in link. You can close this tab.`; msg.className = "login-msg good-t";
+  /* Accounts: register once (email + password, confirmed with an emailed code),
+     then sign in with email + password. Forgot password = emailed code + new password. */
+  let authEmail = "";
+  const siteUrl = () => location.href.split("#")[0].split("?")[0];
+  const okEmail = e => e.endsWith("@" + EMAIL_DOMAIN) || ADMIN_EMAILS.includes(e);
+  function say(text, cls = "muted", html = false) {
+    const m = $("#login-msg");
+    m[html ? "innerHTML" : "textContent"] = text; m.className = "login-msg " + cls;
+  }
+  function setMode(mode) {
+    document.querySelectorAll("#login .auth-form").forEach(f => { f.hidden = f.dataset.mode !== mode; });
+    document.querySelectorAll("#login .auth-tab").forEach(t => t.classList.toggle("on", t.dataset.mode === mode));
+    document.querySelectorAll("#login .auth-email").forEach(b => { b.textContent = authEmail; });
+    const form = document.querySelector(`#login .auth-form[data-mode="${mode}"]`);
+    if (form) {
+      if (form.email && authEmail && !form.email.value) form.email.value = authEmail;
+      const first = [...form.querySelectorAll("input:not([hidden])")].find(i => !i.value);
+      if (first) setTimeout(() => first.focus(), 30);
+    }
+  }
+  function busy(form, on) { form.querySelector("button[type=submit]").disabled = on; }
+  function friendly(err) {
+    const m = String(err && err.message || err || "");
+    if (/invalid login credentials/i.test(m)) return "Wrong email or password. First time here? Click Register. Forgot it? Click Forgot password.";
+    if (/rate limit|too many/i.test(m)) return "Too many emails were sent in a short time. Please wait a few minutes and try again.";
+    if (/expired|invalid.*(otp|token)|token.*(invalid|expired)/i.test(m)) return "That code is wrong or has expired. Check the latest email, or send a new code.";
+    if (/password should|weak|at least/i.test(m)) return "Please choose a stronger password (at least 8 characters).";
+    return m;
   }
 
-  // Password sign-in for admins/testers. Accounts are created by an admin in
-  // Supabase (Authentication → Users → Add user), so no email is needed.
-  async function signInWithPassword() {
-    const email = $("#login-email").value.trim().toLowerCase();
-    const password = $("#login-password").value;
-    const msg = $("#login-msg");
-    if (!email.endsWith("@" + EMAIL_DOMAIN) && !ADMIN_EMAILS.includes(email)) { msg.textContent = `Use your @${EMAIL_DOMAIN} email address.`; msg.className = "login-msg bad-t"; return; }
-    if (!password) return $("#login-password").focus();
-    $("#login-pw").disabled = true; msg.textContent = "Signing in…"; msg.className = "login-msg muted";
+  async function signIn(e) {
+    e.preventDefault();
+    const f = e.target, email = f.email.value.trim().toLowerCase(), password = f.password.value;
+    if (!okEmail(email)) return say(`Use your @${EMAIL_DOMAIN} email address.`, "bad-t");
+    authEmail = email; busy(f, true); say("Signing in…");
     const { error } = await db.auth.signInWithPassword({ email, password });
-    $("#login-pw").disabled = false;
-    if (error) { msg.textContent = "Couldn't sign in: " + error.message; msg.className = "login-msg bad-t"; return; }
+    busy(f, false);
+    if (error && /not confirmed/i.test(error.message)) {
+      await db.auth.resend({ type: "signup", email, options: { emailRedirectTo: siteUrl() } });
+      setMode("code");
+      return say("Your email isn't confirmed yet, so we've sent you a new code.", "good-t");
+    }
+    if (error) return say(friendly(error), "bad-t");
     location.reload();
+  }
+
+  async function register(e) {
+    e.preventDefault();
+    const f = e.target, email = f.email.value.trim().toLowerCase();
+    if (!okEmail(email)) return say(`Use your @${EMAIL_DOMAIN} email address.`, "bad-t");
+    if (f.password.value.length < 8) return say("The password needs at least 8 characters.", "bad-t");
+    if (f.password.value !== f.password2.value) return say("The two passwords don't match.", "bad-t");
+    authEmail = email; busy(f, true); say("Registering…");
+    const { data, error } = await db.auth.signUp({ email, password: f.password.value, options: { emailRedirectTo: siteUrl() } });
+    busy(f, false);
+    if (error) return say(friendly(error), "bad-t");
+    if (data.session) return location.reload();                       // email confirmation switched off
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setMode("signin");
+      return say("This email is already registered. Sign in with your password, or click Forgot password.", "bad-t");
+    }
+    setMode("code");
+    say("Check your email for the code. It can take a minute to arrive.", "good-t");
+  }
+
+  async function confirmCode(e) {
+    e.preventDefault();
+    const f = e.target, token = f.code.value.replace(/\s+/g, "");
+    if (!token) return;
+    busy(f, true); say("Checking the code…");
+    let { error } = await db.auth.verifyOtp({ email: authEmail, token, type: "signup" });
+    if (error) ({ error } = await db.auth.verifyOtp({ email: authEmail, token, type: "email" }));
+    busy(f, false);
+    if (error) return say(friendly(error), "bad-t");
+    location.reload();
+  }
+
+  async function resendCode(e) {
+    e.preventDefault();
+    if (!authEmail) return setMode("register");
+    say("Sending a new code…");
+    const { error } = await db.auth.resend({ type: "signup", email: authEmail, options: { emailRedirectTo: siteUrl() } });
+    say(error ? friendly(error) : "A new code is on its way.", error ? "bad-t" : "good-t");
+  }
+
+  async function forgot(e) {
+    e.preventDefault();
+    const f = e.target, email = f.email.value.trim().toLowerCase();
+    if (!okEmail(email)) return say(`Use your @${EMAIL_DOMAIN} email address.`, "bad-t");
+    authEmail = email; busy(f, true); say("Sending…");
+    const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: siteUrl() });
+    busy(f, false);
+    if (error) return say(friendly(error), "bad-t");
+    $("#f-reset").code.hidden = false; $("#f-reset").code.required = true; $("#f-reset .reset-intro").hidden = false;
+    $("#f-reset").email.value = email;
+    setMode("reset");
+    say("Check your email for the code.", "good-t");
+  }
+
+  let recovering = false;   // arrived from a password-reset link instead of typing the code
+  async function resetPassword(e) {
+    e.preventDefault();
+    const f = e.target;
+    if (f.password.value.length < 8) return say("The password needs at least 8 characters.", "bad-t");
+    if (f.password.value !== f.password2.value) return say("The two passwords don't match.", "bad-t");
+    busy(f, true); say("Saving…");
+    if (!recovering) {
+      const { error } = await db.auth.verifyOtp({ email: authEmail, token: f.code.value.replace(/\s+/g, ""), type: "recovery" });
+      if (error) { busy(f, false); return say(friendly(error), "bad-t"); }
+    }
+    const { error } = await db.auth.updateUser({ password: f.password.value });
+    busy(f, false);
+    if (error) return say(friendly(error), "bad-t");
+    say("Password saved. Signing you in…", "good-t");
+    setTimeout(() => location.reload(), 600);
   }
 
   async function saveProfile() {
@@ -494,11 +586,23 @@
   }
 
   async function bootOnline() {
-    $("#login-send").onclick = sendLink;
-    $("#login-email").addEventListener("keydown", e => { if (e.key === "Enter") sendLink(); });
-    $("#pw-show").onclick = e => { e.preventDefault(); $("#pw-form").hidden = false; $("#login-password").focus(); };
-    $("#login-pw").onclick = signInWithPassword;
-    $("#login-password").addEventListener("keydown", e => { if (e.key === "Enter") signInWithPassword(); });
+    $("#f-signin").addEventListener("submit", signIn);
+    $("#f-register").addEventListener("submit", register);
+    $("#f-code").addEventListener("submit", confirmCode);
+    $("#f-forgot").addEventListener("submit", forgot);
+    $("#f-reset").addEventListener("submit", resetPassword);
+    $("#resend-code").onclick = resendCode;
+    document.querySelectorAll("#login .auth-tab").forEach(t => { t.onclick = () => { say(""); setMode(t.dataset.mode); }; });
+    document.querySelectorAll("#login [data-goto]").forEach(a => { a.onclick = ev => {
+      ev.preventDefault(); const m = a.closest("form"); if (m && m.email) authEmail = m.email.value.trim().toLowerCase() || authEmail;
+      say(""); setMode(a.dataset.goto); }; });
+    db.auth.onAuthStateChange(ev => {
+      if (ev !== "PASSWORD_RECOVERY") return;
+      recovering = true;
+      $("#f-reset").code.hidden = true; $("#f-reset").code.required = false; $("#f-reset .reset-intro").hidden = true;
+      $("#loading").hidden = true; show("login"); setMode("reset");
+      say("Choose a new password.", "good-t");
+    });
     $("#pf-save").onclick = saveProfile;
     $("#signout").onclick = async () => { await db.auth.signOut(); location.reload(); };
     $("#pf-list").innerHTML = SECTORS.map(n => `<label><input type="checkbox" value="${esc(n)}"> ${esc(n)}</label>`).join("");
@@ -511,7 +615,13 @@
     };
 
     const { data: { session } } = await db.auth.getSession();
-    if (!session) { $("#loading").hidden = true; return show("login"); }
+    if (!session) { $("#loading").hidden = true; show("login"); return setMode("signin"); }
+    if (recovering || FROM_RESET_LINK) {
+      recovering = true;
+      $("#f-reset").code.hidden = true; $("#f-reset").code.required = false; $("#f-reset .reset-intro").hidden = true;
+      $("#loading").hidden = true; show("login"); setMode("reset");
+      return say("Choose a new password.", "good-t");
+    }
     user = session.user;
     const { data: prof } = await db.from("quiz_profiles").select("*").eq("user_id", user.id).maybeSingle();
     if (!prof) {

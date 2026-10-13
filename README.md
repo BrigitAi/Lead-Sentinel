@@ -54,7 +54,8 @@ The game runs **offline** (sample questions, scores per device) until `config.js
 
 - **Questions** come from `quiz_questions`. Only questions with status *approved* are played.
 - **Results** go to `quiz_results`, and every competitor sees one shared league table.
-- **Sign-in** uses a one-time email link and accepts `@brigit.co.za` addresses, plus the admin addresses listed in `config.js` (`adminEmails`), which must also be approvers. First-timers choose a display name and one or more sectors, which are fixed after that. An admin can change them in Supabase (`quiz_profiles.sectors`).
+- **Accounts:** players **register once** with their Brigit email and a password, then confirm with a code emailed to them. After that they sign in with email + password (browsers offer to save it, and players stay signed in). **Forgot password** emails a code to set a new one. Only `@brigit.co.za` addresses are accepted, plus the admin addresses in `config.js` (`adminEmails`), which must also be approvers. First-timers choose a display name and one or more sectors, which are fixed after that. An admin can change them in Supabase (`quiz_profiles.sectors`).
+- **Email templates:** in Supabase → Authentication → Emails, the *Confirm signup* and *Reset password* templates must include `{{ .Token }}` so the email shows the code.
 - **Approvers** (listed in `quiz_approvers`) get a *Review questions* button that opens `review.html`. There they can edit, approve or reject draft questions.
 
 Status (13 Oct 2026):

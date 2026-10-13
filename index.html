@@ -141,8 +141,12 @@
   .gate-form input, .gate-form select { flex: 1; padding: 14px 16px; border-radius: 12px; border: 2px solid var(--line); background: var(--pitch); color: var(--text); font-size: 16px; }
   .gate-form input:focus, .gate-form select:focus { outline: none; border-color: var(--brand); }
   .login-msg { min-height: 1.4em; margin-top: 14px; }
-  .pw-toggle { font-size: 13px; margin-top: 18px; }
-  .pw-toggle a, .pw-toggle a:visited { color: var(--icon); }
+  .auth-tabs { display: inline-flex; background: var(--pitch); border: 1px solid var(--line); border-radius: 10px; padding: 3px; margin-top: 14px; }
+  .auth-tab { border: 0; background: none; color: var(--muted); padding: 8px 22px; border-radius: 8px; font-family: var(--head); text-transform: uppercase; letter-spacing: .05em; font-size: 15px; cursor: pointer; }
+  .auth-tab.on { background: var(--brand); color: var(--ink); }
+  .auth-form { margin-top: 16px; }
+  .auth-form p { margin: 0 0 4px; }
+  .auth-links { font-size: 13px; color: var(--muted); margin-top: 6px !important; }
   .account { display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
   .account b { color: var(--text); font-weight: 600; }
   .btn.small { padding: 6px 12px; font-size: 13px; text-decoration: none; display: inline-block; }
@@ -262,17 +266,58 @@
   <section id="login" class="screen gate" hidden>
     <img class="logo" src="logo.png" alt="Brigit Fire" onerror="this.remove()">
     <h1>Brigit Trivia League</h1>
-    <p class="muted">Sign in with your Brigit email. We'll send you a one-time link — no password needed.</p>
-    <div class="gate-form">
-      <input id="login-email" type="email" placeholder="name@brigit.co.za" autocomplete="email" aria-label="Brigit email">
-      <button class="btn go" id="login-send">Send my link</button>
+    <div class="auth-tabs" role="tablist">
+      <button type="button" class="auth-tab" data-mode="signin">Sign in</button>
+      <button type="button" class="auth-tab" data-mode="register">Register</button>
     </div>
+
+    <!-- Sign in -->
+    <form id="f-signin" class="gate-form col auth-form" data-mode="signin" hidden>
+      <p class="muted">Sign in with your Brigit email and password.</p>
+      <input name="email" type="email" placeholder="name@brigit.co.za" autocomplete="username" aria-label="Email" required>
+      <input name="password" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password" required>
+      <button class="btn go" type="submit">Sign in</button>
+      <p class="auth-links"><a href="#" data-goto="forgot">Forgot password?</a> · <a href="#" data-goto="register">New here? Register</a></p>
+    </form>
+
+    <!-- Register -->
+    <form id="f-register" class="gate-form col auth-form" data-mode="register" hidden>
+      <p class="muted">First time? Register with your Brigit email and choose a password. We'll email you a code to confirm it's you. You only do this once.</p>
+      <input name="email" type="email" placeholder="name@brigit.co.za" autocomplete="username" aria-label="Email" required>
+      <input name="password" type="password" placeholder="Choose a password (at least 8 characters)" autocomplete="new-password" minlength="8" aria-label="New password" required>
+      <input name="password2" type="password" placeholder="Type the password again" autocomplete="new-password" minlength="8" aria-label="Confirm password" required>
+      <button class="btn go" type="submit">Register</button>
+      <p class="auth-links"><a href="#" data-goto="signin">Already registered? Sign in</a></p>
+    </form>
+
+    <!-- Confirm the code from the registration email -->
+    <form id="f-code" class="gate-form col auth-form" data-mode="code" hidden>
+      <p class="muted">We've emailed a code to <b class="auth-email"></b>. Enter it below to finish registering.</p>
+      <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="Code from the email" maxlength="10" aria-label="Code" required>
+      <button class="btn go" type="submit">Confirm</button>
+      <p class="auth-links"><a href="#" id="resend-code">Send the code again</a> · <a href="#" data-goto="register">Use a different email</a></p>
+    </form>
+
+    <!-- Forgot password: ask for a code -->
+    <form id="f-forgot" class="gate-form col auth-form" data-mode="forgot" hidden>
+      <p class="muted">Enter your Brigit email and we'll send you a code to set a new password.</p>
+      <input name="email" type="email" placeholder="name@brigit.co.za" autocomplete="username" aria-label="Email" required>
+      <button class="btn go" type="submit">Email me a code</button>
+      <p class="auth-links"><a href="#" data-goto="signin">Back to sign in</a></p>
+    </form>
+
+    <!-- Forgot password: code + new password -->
+    <form id="f-reset" class="gate-form col auth-form" data-mode="reset" hidden>
+      <p class="muted reset-intro">We've emailed a code to <b class="auth-email"></b>. Enter it and choose a new password.</p>
+      <input name="email" type="email" autocomplete="username" hidden>
+      <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="Code from the email" maxlength="10" aria-label="Code">
+      <input name="password" type="password" placeholder="New password (at least 8 characters)" autocomplete="new-password" minlength="8" aria-label="New password" required>
+      <input name="password2" type="password" placeholder="Type the new password again" autocomplete="new-password" minlength="8" aria-label="Confirm new password" required>
+      <button class="btn go" type="submit">Save new password</button>
+      <p class="auth-links"><a href="#" data-goto="signin">Back to sign in</a></p>
+    </form>
+
     <p id="login-msg" class="login-msg"></p>
-    <p class="muted pw-toggle"><a href="#" id="pw-show">Admin or tester? Sign in with a password</a></p>
-    <div class="gate-form" id="pw-form" hidden>
-      <input id="login-password" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password">
-      <button class="btn" id="login-pw">Sign in</button>
-    </div>
   </section>
 
   <!-- ===== FIRST-TIME PROFILE (online mode) ===== -->
