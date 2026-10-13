@@ -129,6 +129,8 @@
   .gate-form input, .gate-form select { flex: 1; padding: 14px 16px; border-radius: 12px; border: 2px solid var(--line); background: var(--pitch); color: var(--text); font-size: 16px; }
   .gate-form input:focus, .gate-form select:focus { outline: none; border-color: var(--brand); }
   .login-msg { min-height: 1.4em; margin-top: 14px; }
+  .pw-toggle { font-size: 13px; margin-top: 18px; }
+  .pw-toggle a { color: var(--muted); }
   .account { display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
   .account b { color: var(--text); font-weight: 600; }
   .btn.small { padding: 6px 12px; font-size: 13px; text-decoration: none; display: inline-block; }
@@ -254,6 +256,11 @@
       <button class="btn go" id="login-send">Send my link</button>
     </div>
     <p id="login-msg" class="login-msg"></p>
+    <p class="muted pw-toggle"><a href="#" id="pw-show">Admin or tester? Sign in with a password</a></p>
+    <div class="gate-form" id="pw-form" hidden>
+      <input id="login-password" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password">
+      <button class="btn" id="login-pw">Sign in</button>
+    </div>
   </section>
 
   <!-- ===== FIRST-TIME PROFILE (online mode) ===== -->
