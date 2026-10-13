@@ -51,11 +51,11 @@ The game runs **offline** (sample questions, scores per device) until `config.js
 
 - **Questions** come from `quiz_questions`. Only questions with status *approved* are played.
 - **Results** go to `quiz_results`, and every competitor sees one shared league table.
-- **Sign-in** uses a one-time email link and only accepts `@brigit.co.za` addresses. First-timers choose a display name and sector, and the sector is fixed after that.
+- **Sign-in** uses a one-time email link and accepts `@brigit.co.za` addresses, plus the admin addresses listed in `config.js` (`adminEmails`), which must also be approvers. First-timers choose a display name and sector, and the sector is fixed after that.
 - **Approvers** (listed in `quiz_approvers`) get a *Review questions* button that opens `review.html`. There they can edit, approve or reject draft questions.
 
 Status (13 Oct 2026):
-- Done: the `quiz_*` tables, access rules and approvers (Donald, Corne, Feri) are live in Brigit's Supabase, and `config.js` is filled in with the project URL and publishable key.
+- Done: the `quiz_*` tables, access rules and approvers (Donald, Corne, Feri, brigitai@ for testing, and admin sysproai@elveygroup.com) are live in Brigit's Supabase, and `config.js` is filled in with the project URL and publishable key.
 - Done: 114 draft questions written from ASH's library (Fire Standards 23, SDS 22, Company Policies 25, Operational Manuals 23, Datasheets 21). They go live once approved on `review.html`.
 - To do: add the GitHub Pages address in Supabase → Authentication → URL Configuration (Site URL and Redirect URLs), or sign-in links won't return to the game.
 - To do: set up custom SMTP in Supabase → Authentication → Emails before rollout. The built-in mailer only sends a handful of sign-in emails per hour.
