@@ -29,6 +29,13 @@
   .btn:disabled { opacity: .5; cursor: default; }
   .btn.ok { background: var(--good); border-color: var(--good); color: var(--ink); }
   .btn.no { border-color: var(--bad); color: var(--bad-text); background: transparent; }
+  .gen { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 18px; display: grid; gap: 10px; }
+  .gen h2 { font-size: 18px; margin: 0 0 4px; }
+  .gen p { margin: 0; }
+  .gen-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn.go { background: var(--brand); border-color: var(--brand); color: var(--ink); }
+  .btn.go:hover:not(:disabled) { background: var(--brand-d); }
+  .gen-msg { min-height: 1.3em; font-size: 14px; }
   .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
   .tabs { display: flex; background: var(--pitch); border-radius: 10px; padding: 3px; }
   .tab { border: 0; background: none; color: var(--muted); padding: 7px 12px; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
@@ -69,6 +76,23 @@
   <div id="gate" class="gate"><p class="muted">Loading…</p></div>
 
   <div id="main" hidden>
+    <div class="gen">
+      <div>
+        <h2>Generate new questions</h2>
+        <p class="muted">Writes new draft questions from unused passages in ASH's library. They appear under Drafts for approval.</p>
+      </div>
+      <div class="gen-row">
+        <select id="gen-lib" aria-label="Library to generate from"></select>
+        <select id="gen-count" aria-label="How many questions">
+          <option value="5">5 questions</option>
+          <option value="10" selected>10 questions</option>
+          <option value="20">20 questions</option>
+          <option value="30">30 questions</option>
+        </select>
+        <button class="btn go" id="gen-go">Generate</button>
+      </div>
+      <p id="gen-msg" class="muted gen-msg"></p>
+    </div>
     <div class="bar">
       <div class="tabs" id="status-tabs">
         <button class="tab on" data-status="draft">Drafts</button>
@@ -117,7 +141,32 @@
     });
     $("#lib").onchange = () => { lib = $("#lib").value; reload(); };
     $("#more").onclick = () => load(false);
+    $("#gen-lib").innerHTML = `<option value="all">All libraries</option>` +
+      LIBS.filter(l => l.id !== "certification").map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join("");
+    $("#gen-go").onclick = generate;
     reload();
+  }
+
+  async function generate() {
+    const library = $("#gen-lib").value, count = +$("#gen-count").value;
+    const msg = $("#gen-msg"), btn = $("#gen-go");
+    btn.disabled = true; msg.style.color = "";
+    msg.textContent = `Writing ${count} question${count === 1 ? "" : "s"} from ${library === "all" ? "all libraries" : libName(library)}… this can take a minute.`;
+    const { data, error } = await db.functions.invoke("quiz-generate", { body: { library, count } });
+    btn.disabled = false;
+    let detail = data;
+    if (error && error.context && typeof error.context.json === "function") { try { detail = await error.context.json(); } catch (e) { /* ignore */ } }
+    if (error && !(detail && detail.created)) {
+      msg.style.color = "var(--bad-text)";
+      msg.textContent = "Couldn't generate: " + ((detail && (detail.error || (detail.errors || []).join("; "))) || error.message);
+      return;
+    }
+    const parts = (detail.results || []).map(r => `${libName(r.library)} ${r.created}` + (r.note ? ` (${r.note.toLowerCase()})` : ""));
+    msg.style.color = "var(--good)";
+    msg.textContent = `Added ${detail.created} new draft question${detail.created === 1 ? "" : "s"}` + (parts.length > 1 ? ` — ${parts.join(", ")}` : "") +
+      (detail.skipped ? `. ${detail.skipped} passage${detail.skipped === 1 ? " was" : "s were"} skipped as unsuitable.` : ".") +
+      ((detail.errors || []).length ? ` Some libraries failed: ${detail.errors.join("; ")}` : "");
+    if (status === "draft") reload();
   }
 
   function reload() { offset = 0; $("#list").innerHTML = ""; load(true); }
