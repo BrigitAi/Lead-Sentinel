@@ -16,11 +16,11 @@
     --head: "Oswald", "Arial Narrow", Impact, sans-serif;
   }
   * { box-sizing: border-box; }
+  a:not(.btn), a:not(.btn):visited { color: var(--icon); }  /* links bright orange, never browser purple */
   [hidden] { display: none !important; }
   body { margin: 0; color: var(--text); font-family: Inter, system-ui, sans-serif; background: var(--bg); }
   .wrap { max-width: 900px; margin: 0 auto; padding: 20px 16px 60px; }
   h1, h2 { font-family: var(--head); text-transform: uppercase; letter-spacing: .04em; margin: 0; }
-  a { color: var(--brand-text); }
   .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
   .top img { height: 52px; background: #fff; padding: 6px 10px; border-radius: 10px; }
   .muted { color: var(--muted); }
