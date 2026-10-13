@@ -1,0 +1,14 @@
+/* =====================================================================
+   CONNECTION SETTINGS
+   Leave both values empty to run in offline mode (sample questions,
+   scores saved on each device only).
+   Fill them in to use Brigit's Supabase: approved questions, email
+   sign-in and one shared league table for everyone.
+   The "anon" key is designed to be public — the database's access
+   rules (supabase/schema.sql) decide what it can do.
+   ===================================================================== */
+window.QUIZ_CONFIG = {
+  supabaseUrl: "https://sxxfuxwgxeitvkbtywhp.supabase.co",
+  supabaseAnonKey: "sb_publishable_2cHhIpWBoWqdavlzF9SukA_G_HG03GE",   // publishable key: safe in a browser
+  emailDomain: "brigit.co.za"
+};

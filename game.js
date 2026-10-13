@@ -1,0 +1,480 @@
+(function () {
+  "use strict";
+
+  /* ---------------- Setup ---------------- */
+  const S = Object.assign(
+    { title: "Trivia League", subtitle: "", secondsPerQuestion: 20, questionsPerRound: 10, basePoints: 100, maxSpeedBonus: 100 },
+    window.GAME_SETTINGS || {}
+  );
+  const CATS = (window.QUIZ_CATEGORIES || []).map(c => ({
+    ...c,
+    questions: (c.questions || []).filter(q => !q.draft && Array.isArray(q.options) && q.options.length === 4)
+  }));
+  const GAMES_KEY = "btl-games";     // local (offline) mode: every round played on this device
+  const PLAYER_KEY = "btl-player";   // remembers the name on this device
+  const SECTOR_KEY = "btl-sector";   // remembers the sector on this device
+  const SECTORS = window.SECTORS || [];
+
+  const $ = s => document.querySelector(s);
+  let st = null, timerId = null, lastCat = null, boardRange = "all", boardView = "players";
+
+  /* ---------------- Online mode (Supabase) ---------------- */
+  const CFG = window.QUIZ_CONFIG || {};
+  const ONLINE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey && window.supabase);
+  const db = ONLINE ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, { auth: { flowType: "implicit", persistSession: true, detectSessionInUrl: true } }) : null;
+  const EMAIL_DOMAIN = (CFG.emailDomain || "brigit.co.za").toLowerCase();
+  let user = null, profile = null, isApprover = false, GAMES = [];
+
+  /* ---------------- Fire-protection icon set ---------------- */
+  const SHIELD = "M12 2.8l7.2 3v5.4c0 4.6-3.1 8.1-7.2 10-4.1-1.9-7.2-5.4-7.2-10V5.8z";
+  const ICONS = {
+    flame: '<path d="M12 2.8c1 3.6 5.2 5.6 5.2 10.4a5.2 5.2 0 0 1-10.4 0c0-2.3 1.2-3.8 2.5-4.8.2 1.7 1 2.7 2.2 3.2C11 9.4 11 6 12 2.8z"/><path d="M12 21.4a2.3 2.3 0 0 1-2.3-2.3c0-1.5 1.3-2.4 2.3-3.8 1 1.4 2.3 2.3 2.3 3.8a2.3 2.3 0 0 1-2.3 2.3z"/>',
+    extinguisher: '<rect x="7.5" y="8.5" width="8" height="13" rx="3"/><path d="M9.5 8.5V6.3h4v2.2M8.5 4.2h6l2.3 1.6M13.5 5c3.4 0 5 1.6 5 4.4V13M7.5 13.5h8"/>',
+    sprinkler: '<path d="M10 21.5h4v-3h-4zM9.3 18.5 8.2 9.3M14.7 18.5l1.1-9.2M5.5 8.5h13"/><ellipse cx="12" cy="13.6" rx="1.3" ry="2.5"/><path d="M4.8 11.8 3 14M19.2 11.8 21 14M6.5 5.6 5.3 3.4M17.5 5.6l1.2-2.2M12 5.2V2.6"/>',
+    hazard: '<path d="M12 2.6 21.4 12 12 21.4 2.6 12z"/><path d="M12 7.8c.6 1.9 2.7 2.9 2.7 5.4a2.7 2.7 0 0 1-5.4 0c0-1.2.6-1.9 1.3-2.4.1.9.5 1.4 1 1.6-.1-1.6-.1-3.1.4-4.6z"/>',
+    helmet: '<path d="M5.2 15.2a6.8 6.8 0 0 1 13.6 0"/><path d="M2.8 15.2h18.4c0 1.7-1.3 3-3 3H5.8c-1.7 0-3-1.3-3-3z"/><path d="M10.4 7.6h3.2v3.6L12 12.3l-1.6-1.1z"/>',
+    shieldFlame: '<path d="' + SHIELD + '"/><path d="M12 7.6c.5 1.6 2.4 2.5 2.4 4.8a2.4 2.4 0 0 1-4.8 0c0-1 .5-1.7 1.1-2.1.1.7.4 1.2.9 1.4-.1-1.4-.1-2.7.4-4.1z"/>',
+    shieldCheck: '<path d="' + SHIELD + '"/><path d="m8.6 12.1 2.4 2.4 4.5-4.7"/>',
+    hydrant: '<path d="M8.6 5.2a3.4 3.4 0 0 1 6.8 0"/><path d="M7.6 5.2h8.8v2.2H7.6zM8.8 7.4v11.4h6.4V7.4M5.4 10.8h3.4v3.4H5.4zM15.2 10.8h3.4v3.4h-3.4zM6.8 18.8h10.4v2.6H6.8z"/>',
+    bell: '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2H4.4z"/><path d="M10 20.5a2 2 0 0 0 4 0M12 3v2"/>'
+  };
+  const icon = (name, cls = "ico") => ICONS[name]
+    ? `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`
+    : esc(name || "");
+  const fillIcons = () => document.querySelectorAll("[data-icon]").forEach(el => { el.innerHTML = icon(el.dataset.icon); });
+
+  const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const pts = v => Math.round(v).toLocaleString("en-ZA");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const show = id => { document.querySelectorAll(".screen").forEach(e => { e.hidden = e.id !== id; }); window.scrollTo(0, 0); };
+  const key = n => String(n || "").trim().toLowerCase();
+  const pidOf = g => g.pid || key(g.name);                 // player identity
+  const myPid = () => ONLINE ? (user && user.id) : key($("#player").value);
+
+  /* ---------------- Storage ---------------- */
+  const LIB_BY_ID = { fire: "fire", policies: "policies", datasheets: "datasheets", sds: "sds", ops: "ops", certification: "certification" };
+
+  function loadGames() { return GAMES; }
+
+  async function refreshGames() {
+    if (!ONLINE) {
+      try { GAMES = JSON.parse(localStorage.getItem(GAMES_KEY) || "[]"); } catch (e) { GAMES = []; }
+      return;
+    }
+    const rows = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await db.from("quiz_results_board")
+        .select("created_at, points, correct, asked, user_id, display_name, sector")
+        .order("created_at", { ascending: true }).range(from, from + 999);
+      if (error) { console.error(error); break; }
+      rows.push(...data);
+      if (data.length < 1000) break;
+    }
+    GAMES = rows.map(r => ({ pid: r.user_id, name: r.display_name, sector: r.sector, points: r.points, correct: r.correct, asked: r.asked, date: r.created_at }));
+  }
+
+  async function saveGame(g) {
+    if (!ONLINE) {
+      GAMES.push(g);
+      try { localStorage.setItem(GAMES_KEY, JSON.stringify(GAMES)); } catch (e) { /* storage unavailable */ }
+      return true;
+    }
+    const { error } = await db.from("quiz_results").insert({
+      library: g.library || "mixed", points: g.points, correct: g.correct, asked: g.asked, best_streak: g.bestStreak
+    });
+    if (error) { console.error(error); return false; }
+    GAMES.push({ ...g, pid: user.id });
+    return true;
+  }
+
+  async function loadQuestionsOnline() {
+    const rows = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await db.from("quiz_questions")
+        .select("library, question, options, correct_index, explanation, source_title")
+        .eq("status", "approved").range(from, from + 999);
+      if (error) { console.error(error); break; }
+      rows.push(...data);
+      if (data.length < 1000) break;
+    }
+    CATS.forEach(c => { c.questions = []; });
+    rows.forEach(r => {
+      const c = CATS.find(x => (LIB_BY_ID[x.id] || x.id) === r.library);
+      if (c && Array.isArray(r.options) && r.options.length === 4)
+        c.questions.push({ q: r.question, options: r.options, answer: r.correct_index, explain: r.explanation, ref: r.source_title });
+    });
+  }
+  function getName() { try { return localStorage.getItem(PLAYER_KEY) || ""; } catch (e) { return ""; } }
+  function setName(n) { try { localStorage.setItem(PLAYER_KEY, n); } catch (e) { /* ignore */ } }
+  function getSector() { try { return localStorage.getItem(SECTOR_KEY) || ""; } catch (e) { return ""; } }
+  function setSector(n) { try { localStorage.setItem(SECTOR_KEY, n); } catch (e) { /* ignore */ } }
+
+  /* ---------------- Leaderboard maths ---------------- */
+  function gamesIn(range) {
+    const now = new Date();
+    const since = range === "week" ? new Date(now - 7 * 864e5)
+      : range === "month" ? new Date(now.getFullYear(), now.getMonth(), 1) : new Date(0);
+    return loadGames().filter(g => new Date(g.date) >= since);
+  }
+
+  function standings(range) {
+    const map = new Map();
+    gamesIn(range).forEach(g => {
+      const k = pidOf(g);
+      const p = map.get(k) || { pid: k, name: g.name, sector: g.sector || "", total: 0, games: 0, best: 0, correct: 0, asked: 0 };
+      if (g.sector) p.sector = g.sector;
+      p.name = g.name;
+      p.total += g.points; p.games++; p.best = Math.max(p.best, g.points);
+      p.correct += g.correct; p.asked += g.asked;
+      map.set(k, p);
+    });
+    return [...map.values()].sort((a, b) => b.total - a.total || b.best - a.best);
+  }
+  function sectorStandings(range) {
+    const map = new Map(SECTORS.map(n => [n, { name: n, total: 0, games: 0, players: new Set(), correct: 0, asked: 0 }]));
+    gamesIn(range).forEach(g => {
+      if (!g.sector) return;
+      const p = map.get(g.sector) || { name: g.sector, total: 0, games: 0, players: new Set(), correct: 0, asked: 0 };
+      p.total += g.points; p.games++; p.players.add(pidOf(g)); p.correct += g.correct; p.asked += g.asked;
+      map.set(g.sector, p);
+    });
+    return [...map.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  }
+
+  const rankOf = (list, pid) => { const i = list.findIndex(p => p.pid === pid); return i < 0 ? null : i + 1; };
+
+  /* ---------------- Home ---------------- */
+  function card(id, ic, name, desc, n, soon) {
+    const off = n === 0 || soon;
+    return `<button class="cat" data-cat="${esc(id)}" ${off ? "disabled" : ""}>
+      <span class="icon">${icon(ic || "flame")}</span>
+      <span class="cname">${esc(name)}</span>
+      <span class="cdesc">${esc(desc || "")}</span>
+      <span class="ccount">${off ? "Coming soon" : n + " question" + (n === 1 ? "" : "s")}</span>
+    </button>`;
+  }
+
+  function renderHome() {
+    document.title = S.title;
+    $("#title").textContent = S.title;
+    $("#subtitle").textContent = S.subtitle;
+    const sel = $("#sector");
+    if (!sel.options.length) sel.innerHTML = `<option value="">Your sector…</option>` + SECTORS.map(n => `<option>${esc(n)}</option>`).join("");
+    if (ONLINE && profile) {
+      $("#player").value = profile.display_name; sel.value = profile.sector;
+      $("#player").disabled = sel.disabled = true;
+      $("#account").hidden = false;
+      $("#acct-email").textContent = user.email;
+      $("#review-link").hidden = !isApprover;
+    } else {
+      if (!$("#player").value) $("#player").value = getName();
+      if (!sel.value) sel.value = getSector();
+    }
+    $("#mode-note").hidden = ONLINE;
+    const total = CATS.filter(c => !c.comingSoon).reduce((n, c) => n + c.questions.length, 0);
+    $("#cats").innerHTML = CATS.map(c => card(c.id, c.icon, c.name, c.description, c.questions.length, c.comingSoon)).join("") +
+      card("mixed", "extinguisher", "Mixed Bag", "A bit of everything", total);
+    $("#cats").querySelectorAll("button[data-cat]").forEach(b => { b.onclick = () => start(b.dataset.cat); });
+    renderMe();
+    renderBoard();
+    show("home");
+  }
+
+  function renderMe() {
+    const name = $("#player").value.trim();
+    const box = $("#me");
+    if (!name) { box.hidden = true; return; }
+    const list = standings("all");
+    const r = rankOf(list, myPid());
+    const p = r ? list[r - 1] : null;
+    box.hidden = false;
+    box.innerHTML = p
+      ? `<div><small>Your rank</small><b>#${r}</b></div><div><small>Total points</small><b>${pts(p.total)}</b></div>
+         <div><small>Races</small><b>${p.games}</b></div><div><small>Personal best</small><b>${pts(p.best)}</b></div>`
+      : `<p>Welcome, <b>${esc(name)}</b>! Choose a race to get on the leaderboard.</p>`;
+  }
+
+  function renderBoard() {
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.range === boardRange));
+    document.querySelectorAll(".view").forEach(t => t.classList.toggle("on", t.dataset.view === boardView));
+    $("#board").closest("table").classList.toggle("sectors", boardView === "sectors");
+    if (boardView === "sectors") return renderSectorBoard();
+    $("#board-head").innerHTML = `<tr><th></th><th>Competitor</th><th class="num">Races</th><th class="num hide-sm">Accuracy</th><th class="num hide-sm">PB</th><th class="num">Points</th></tr>`;
+    const me = myPid();
+    const list = standings(boardRange);
+    $("#board").innerHTML = list.length
+      ? list.slice(0, 20).map((p, i) => {
+          const medal = ["🥇", "🥈", "🥉"][i] || `<span class="pos">${i + 1}</span>`;
+          const acc = p.asked ? Math.round(p.correct / p.asked * 100) : 0;
+          return `<tr class="${p.pid === me ? "mine" : ""} ${i < 3 ? "top" : ""}">
+            <td class="r">${medal}</td><td class="n">${esc(p.name)}${p.sector ? `<small class="sec">${esc(p.sector)}</small>` : ""}</td>
+            <td class="num">${p.games}</td><td class="num hide-sm">${acc}%</td><td class="num hide-sm">${pts(p.best)}</td>
+            <td class="num tot">${pts(p.total)}</td></tr>`;
+        }).join("")
+      : `<tr><td colspan="6" class="empty">No races yet this period — first to the start line takes top spot!</td></tr>`;
+  }
+
+  function renderSectorBoard() {
+    const mine = $("#sector").value;
+    $("#board-head").innerHTML = `<tr><th></th><th>Sector</th><th class="num hide-sm">Players</th><th class="num hide-sm">Accuracy</th><th class="num">Races</th><th class="num">Points</th></tr>`;
+    const list = sectorStandings(boardRange);
+    const anyPlayed = list.some(s => s.games);
+    $("#board").innerHTML = list.map((p, i) => {
+      const medal = anyPlayed && p.games ? (["🥇", "🥈", "🥉"][i] || `<span class="pos">${i + 1}</span>`) : `<span class="pos">–</span>`;
+      const acc = p.asked ? Math.round(p.correct / p.asked * 100) + "%" : "–";
+      return `<tr class="${p.name === mine ? "mine" : ""} ${anyPlayed && i < 3 && p.games ? "top" : ""}">
+        <td class="r">${medal}</td><td class="n">${esc(p.name)}</td>
+        <td class="num hide-sm">${p.players.size}</td><td class="num hide-sm">${acc}</td><td class="num">${p.games}</td>
+        <td class="num tot">${pts(p.total)}</td></tr>`;
+    }).join("");
+  }
+
+  /* ---------------- Game ---------------- */
+  function start(catId) {
+    const input = $("#player");
+    const name = input.value.trim();
+    const sector = $("#sector").value;
+    const nudge = el => { el.focus(); el.classList.add("shake"); setTimeout(() => el.classList.remove("shake"), 500); };
+    if (!name) return nudge(input);
+    if (SECTORS.length && !sector) return nudge($("#sector"));
+    if (!ONLINE) { setName(name); setSector(sector); }
+    lastCat = catId;
+
+    let pool, catName;
+    if (catId === "mixed") {
+      pool = CATS.flatMap(c => c.questions.map(q => ({ ...q, _cat: c.name })));
+      catName = "Mixed Bag";
+    } else {
+      const c = CATS.find(x => x.id === catId);
+      pool = c.questions.map(q => ({ ...q, _cat: c.name }));
+      catName = c.name;
+    }
+    const n = Math.min(S.questionsPerRound, pool.length);
+    const qs = shuffle(pool).slice(0, n).map(q => ({ ...q, opts: shuffle(q.options.map((t, i) => ({ t, ok: i === q.answer }))) }));
+    const before = standings("all");
+    const pid = myPid();
+    const meBefore = before.find(p => p.pid === pid);
+
+    st = { pid, library: catId, name, sector, catName, qs, i: 0, score: 0, streak: 0, bestStreak: 0, log: [], locked: false, rankBefore: rankOf(before, pid), pbBefore: meBefore ? meBefore.best : null };
+    $("#hud-cat").textContent = catName;
+    show("game");
+    renderQ();
+  }
+
+  const multiplier = streak => streak >= 5 ? 2 : streak >= 3 ? 1.5 : 1;
+
+  function renderHud() {
+    $("#hud-score").textContent = pts(st.score);
+    $("#hud-q").textContent = `${st.i + 1}/${st.qs.length}`;
+    const m = multiplier(st.streak);
+    $("#hud-streak").textContent = st.streak ? `🔥 ${st.streak}` : "–";
+    $("#hud-mult").textContent = m > 1 ? `×${m} pace` : "";
+    $("#hud-mult").hidden = m === 1;
+    $("#dots").innerHTML = st.qs.map((_, k) => {
+      const l = st.log[k];
+      return `<i class="${l ? (l.right ? "hit" : "miss") : (k === st.i ? "now" : "")}"></i>`;
+    }).join("");
+  }
+
+  function renderQ() {
+    const q = st.qs[st.i];
+    st.locked = false;
+    renderHud();
+    $("#qcat").textContent = q._cat;
+    $("#question").textContent = q.q;
+    $("#answers").innerHTML = q.opts.map((o, k) =>
+      `<button class="ans" data-k="${k}"><span class="lt">${"ABCD"[k]}</span><span>${esc(o.t)}</span></button>`).join("");
+    $("#answers").querySelectorAll(".ans").forEach(b => { b.onclick = () => answer(+b.dataset.k); });
+    $("#feedback").hidden = true;
+    startTimer();
+  }
+
+  function startTimer() {
+    clearInterval(timerId);
+    const total = (+S.secondsPerQuestion || 20) * 1000;
+    const t0 = performance.now();
+    st.timeLeft = 1;
+    const bar = $("#timebar"), txt = $("#timetxt");
+    const tick = () => {
+      const left = Math.max(0, total - (performance.now() - t0));
+      st.timeLeft = left / total;
+      bar.style.transform = `scaleX(${st.timeLeft})`;
+      bar.classList.toggle("low", st.timeLeft < 0.3);
+      txt.textContent = Math.ceil(left / 1000) + "s";
+      if (left <= 0) { clearInterval(timerId); answer(-1); }
+    };
+    tick();
+    timerId = setInterval(tick, 100);
+  }
+
+  function answer(k) {
+    if (!st || st.locked) return;
+    st.locked = true;
+    clearInterval(timerId);
+    const q = st.qs[st.i];
+    const btns = [...$("#answers").children];
+    const okK = q.opts.findIndex(o => o.ok);
+    const right = k === okK;
+    btns.forEach(b => { b.disabled = true; });
+    btns[okK].classList.add("correct");
+    if (k >= 0 && !right) btns[k].classList.add("wrong");
+
+    let gained = 0, speed = 0, mult = 1;
+    if (right) {
+      st.streak++;
+      st.bestStreak = Math.max(st.bestStreak, st.streak);
+      mult = multiplier(st.streak);
+      speed = Math.round(S.maxSpeedBonus * st.timeLeft);
+      gained = Math.round((S.basePoints + speed) * mult);
+      st.score += gained;
+      popPoints(btns[k], gained);
+    } else {
+      st.streak = 0;
+    }
+    st.log.push({ q: q.q, chosen: k >= 0 ? q.opts[k].t : "(time ran out)", correct: q.opts[okK].t, explain: q.explain, ref: q.ref, right, gained });
+    renderHud();
+
+    const last = st.i === st.qs.length - 1;
+    const fb = $("#feedback");
+    fb.className = "feedback " + (right ? "good" : "bad");
+    fb.innerHTML =
+      `<div class="fb-head"><h3>${right ? pick(CHEERS) + " +" + pts(gained) : (k < 0 ? "Time's up — DNF" : pick(MISSES))}</h3>` +
+      (right ? `<span class="break">${S.basePoints} + ${speed} sprint${mult > 1 ? ` × ${mult} pace` : ""}</span>` : `<span class="break">Streak reset</span>`) + `</div>` +
+      (right ? "" : `<p>Correct answer: <b>${esc(q.opts[okK].t)}</b></p>`) +
+      (q.explain ? `<p>${esc(q.explain)}</p>` : "") +
+      (q.ref ? `<p class="ref">📄 ${esc(q.ref)}</p>` : "") +
+      `<button class="btn go" id="next">${last ? "Cross the finish line 🏁" : "Next lap →"}</button>`;
+    fb.hidden = false;
+    $("#next").onclick = () => { if (last) finish(); else { st.i++; renderQ(); } };
+    $("#next").focus({ preventScroll: true });
+  }
+
+  const CHEERS = ["Strong rep!", "On pace!", "Clean lift!", "PB pace!", "Smashed it!", "Full send!"];
+  const MISSES = ["Dropped the rep", "Tripped up", "Off pace", "Missed the split"];
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+
+  function popPoints(el, n) {
+    const p = document.createElement("span");
+    p.className = "pop"; p.textContent = "+" + pts(n);
+    el.appendChild(p);
+  }
+
+  /* ---------------- Results ---------------- */
+  async function finish() {
+    clearInterval(timerId);
+    const correct = st.log.filter(l => l.right).length;
+    const nextBtn = $("#next"); if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = "Saving…"; }
+    const saved = await saveGame({ pid: st.pid, name: st.name, sector: st.sector, library: st.library, category: st.catName, points: st.score, correct, asked: st.log.length, bestStreak: st.bestStreak, date: new Date().toISOString() });
+    if (!saved) {
+      if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = "Couldn't save — try again"; }
+      return;
+    }
+
+    const list = standings("all");
+    const r = rankOf(list, st.pid);
+    const me = list[r - 1];
+    let move = "";
+    if (st.rankBefore == null) move = `You're on the leaderboard at <b>#${r}</b>`;
+    else if (r < st.rankBefore) move = `▲ Up ${st.rankBefore - r} place${st.rankBefore - r > 1 ? "s" : ""} to <b>#${r}</b>`;
+    else move = `Holding at <b>#${r}</b>`;
+    const above = r > 1 ? list[r - 2] : null;
+
+    $("#r-score").textContent = pts(st.score);
+    $("#r-pb").innerHTML = st.pbBefore != null && st.score > st.pbBefore
+      ? `<span class="pb">🎉 New personal best! (was ${pts(st.pbBefore)})</span>` : "";
+    $("#r-stats").innerHTML =
+      `<div><small>Correct</small><b>${correct}/${st.log.length}</b></div>
+       <div><small>Longest streak</small><b>🔥 ${st.bestStreak}</b></div>
+       <div><small>Season total</small><b>${pts(me.total)}</b></div>
+       <div><small>Rank</small><b>#${r}</b></div>`;
+    $("#r-move").innerHTML = move + (above ? ` · <span class="chase">${pts(above.total - me.total + 1)} pts to overtake ${esc(above.name)}</span>` : ` · <span class="chase">You're top of the table! 🏆</span>`);
+
+    if (st.sector) {
+      const secs = sectorStandings("all");
+      const sr = secs.findIndex(x => x.name === st.sector) + 1;
+      $("#r-sector").innerHTML = `Your points also count for <b>${esc(st.sector)}</b> — currently <b>#${sr}</b> of ${secs.length} sectors`;
+    } else $("#r-sector").textContent = "";
+
+    const missed = st.log.filter(l => !l.right);
+    $("#review").innerHTML = missed.length
+      ? `<h3>Training review — what you missed</h3>` + missed.map(m => `<div class="rev">
+          <p class="rq">${esc(m.q)}</p>
+          <p>You said: <span class="bad-t">${esc(m.chosen)}</span></p>
+          <p>Correct: <span class="good-t">${esc(m.correct)}</span></p>
+          ${m.explain ? `<p class="muted">${esc(m.explain)}</p>` : ""}
+          ${m.ref ? `<p class="ref">📄 ${esc(m.ref)}</p>` : ""}</div>`).join("")
+      : `<p class="perfect">Flawless set — every rep counted! 💪</p>`;
+    show("results");
+  }
+
+  /* ---------------- Wiring ---------------- */
+  $("#player").addEventListener("input", () => { renderMe(); renderBoard(); });
+  $("#sector").addEventListener("change", () => { setSector($("#sector").value); renderBoard(); });
+  document.querySelectorAll(".tab").forEach(t => { t.onclick = () => { boardRange = t.dataset.range; renderBoard(); }; });
+  document.querySelectorAll(".view").forEach(t => { t.onclick = () => { boardView = t.dataset.view; renderBoard(); }; });
+  $("#again").onclick = () => start(lastCat);
+  $("#home-btn").onclick = async () => { if (ONLINE) await refreshGames(); renderHome(); };
+  $("#quit").onclick = () => { if (confirm("Pull out of this race? Points from this round won't count.")) { clearInterval(timerId); renderHome(); } };
+  document.addEventListener("keydown", e => {
+    if ($("#game").hidden || !st) return;
+    if (st.locked) { if (e.key === "Enter" && $("#next")) $("#next").click(); return; }
+    const k = "abcd".indexOf(e.key.toLowerCase());
+    if (k >= 0) answer(k);
+  });
+
+  /* ---------------- Sign-in (online mode) ---------------- */
+  async function sendLink() {
+    const email = $("#login-email").value.trim().toLowerCase();
+    const msg = $("#login-msg");
+    if (!email.endsWith("@" + EMAIL_DOMAIN)) { msg.textContent = `Use your @${EMAIL_DOMAIN} email address.`; msg.className = "login-msg bad-t"; return; }
+    $("#login-send").disabled = true; msg.textContent = "Sending…"; msg.className = "login-msg muted";
+    const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split("#")[0].split("?")[0] } });
+    $("#login-send").disabled = false;
+    if (error) { msg.textContent = "Couldn't send the link: " + error.message; msg.className = "login-msg bad-t"; return; }
+    msg.innerHTML = `Check <b>${esc(email)}</b> for your sign-in link. You can close this tab.`; msg.className = "login-msg good-t";
+  }
+
+  async function saveProfile() {
+    const name = $("#pf-name").value.trim(), sector = $("#pf-sector").value;
+    if (name.length < 2) return $("#pf-name").focus();
+    if (!sector) return $("#pf-sector").focus();
+    $("#pf-save").disabled = true;
+    const { data, error } = await db.from("quiz_profiles").insert({ user_id: user.id, display_name: name, sector }).select().single();
+    $("#pf-save").disabled = false;
+    if (error) { $("#pf-msg").textContent = "Couldn't save: " + error.message; return; }
+    profile = data;
+    await enterGame();
+  }
+
+  async function enterGame() {
+    $("#loading").hidden = false;
+    const [, , appr] = await Promise.all([
+      loadQuestionsOnline(),
+      refreshGames(),
+      db.rpc("quiz_is_approver")
+    ]);
+    isApprover = !!(appr && appr.data);
+    $("#loading").hidden = true;
+    renderHome();
+  }
+
+  async function bootOnline() {
+    $("#login-send").onclick = sendLink;
+    $("#login-email").addEventListener("keydown", e => { if (e.key === "Enter") sendLink(); });
+    $("#pf-save").onclick = saveProfile;
+    $("#signout").onclick = async () => { await db.auth.signOut(); location.reload(); };
+    $("#pf-sector").innerHTML = `<option value="">Your sector…</option>` + SECTORS.map(n => `<option>${esc(n)}</option>`).join("");
+
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) { $("#loading").hidden = true; return show("login"); }
+    user = session.user;
+    const { data: prof } = await db.from("quiz_profiles").select("*").eq("user_id", user.id).maybeSingle();
+    if (!prof) { $("#loading").hidden = true; $("#pf-name").value = (user.email.split("@")[0] || "").replace(/[._-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase()); return show("profile"); }
+    profile = prof;
+    await enterGame();
+  }
+
+  fillIcons();
+  if (ONLINE) bootOnline();
+  else { refreshGames(); $("#loading").hidden = true; renderHome(); }
+})();
