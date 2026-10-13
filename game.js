@@ -435,6 +435,21 @@
     msg.innerHTML = `Check <b>${esc(email)}</b> for your sign-in link. You can close this tab.`; msg.className = "login-msg good-t";
   }
 
+  // Password sign-in for admins/testers. Accounts are created by an admin in
+  // Supabase (Authentication → Users → Add user), so no email is needed.
+  async function signInWithPassword() {
+    const email = $("#login-email").value.trim().toLowerCase();
+    const password = $("#login-password").value;
+    const msg = $("#login-msg");
+    if (!email.endsWith("@" + EMAIL_DOMAIN) && !ADMIN_EMAILS.includes(email)) { msg.textContent = `Use your @${EMAIL_DOMAIN} email address.`; msg.className = "login-msg bad-t"; return; }
+    if (!password) return $("#login-password").focus();
+    $("#login-pw").disabled = true; msg.textContent = "Signing in…"; msg.className = "login-msg muted";
+    const { error } = await db.auth.signInWithPassword({ email, password });
+    $("#login-pw").disabled = false;
+    if (error) { msg.textContent = "Couldn't sign in: " + error.message; msg.className = "login-msg bad-t"; return; }
+    location.reload();
+  }
+
   async function saveProfile() {
     const name = $("#pf-name").value.trim(), sector = $("#pf-sector").value;
     if (name.length < 2) return $("#pf-name").focus();
@@ -462,6 +477,9 @@
   async function bootOnline() {
     $("#login-send").onclick = sendLink;
     $("#login-email").addEventListener("keydown", e => { if (e.key === "Enter") sendLink(); });
+    $("#pw-show").onclick = e => { e.preventDefault(); $("#pw-form").hidden = false; $("#login-password").focus(); };
+    $("#login-pw").onclick = signInWithPassword;
+    $("#login-password").addEventListener("keydown", e => { if (e.key === "Enter") signInWithPassword(); });
     $("#pf-save").onclick = saveProfile;
     $("#signout").onclick = async () => { await db.auth.signOut(); location.reload(); };
     $("#pf-sector").innerHTML = `<option value="">Your sector…</option>` + SECTORS.map(n => `<option>${esc(n)}</option>`).join("");
