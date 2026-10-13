@@ -45,6 +45,7 @@ After every answer the explanation and reference (SANS standard, SDS section, ma
 | `supabase/sectors.sql` | Multiple sectors per competitor (run once after schema.sql) |
 | `supabase/sectors_edit.sql` | Lets players change their own sectors (run once after sectors.sql) |
 | `supabase/upload.sql` | Lets approvers upload their own questions (run once) |
+| `supabase/stats.sql` | Stats views for ASH and reports, plus the per-answer log (run once) |
 | `supabase/generate.sql` | Support for the question generator (run once after schema.sql) |
 | `supabase/functions/quiz-generate/index.ts` | Edge Function that writes new draft questions with AI |
 
@@ -85,6 +86,22 @@ One-time setup:
 Every run is logged in the `quiz_generation_runs` table (who, which library, how many).
 
 The publishable key in `config.js` is designed to be public. Never put a secret (`sb_secret_…`) or service-role key in this repository.
+
+## Stats for ASH
+`supabase/stats.sql` creates read-only views in the same Supabase database ASH uses. Times are South African time.
+
+| View | Answers |
+|---|---|
+| `quiz_stats_leaderboard` | Who is in the lead (season, month, week points; races; accuracy) |
+| `quiz_stats_leaderboard_by_sector` / `quiz_stats_sectors` | Leaders per sector, and the sector table |
+| `quiz_stats_most_played` | Who played each race the most |
+| `quiz_stats_question_repeats` | Who answered the same question most often |
+| `quiz_stats_questions` | Most played and most missed questions |
+| `quiz_stats_play_hours` / `quiz_stats_play_times` | What time of day (and weekday) people play most |
+| `quiz_stats_required_completion` | Who has / hasn't completed Company Policies |
+| `quiz_stats_summary()` | All of the above in one JSON call |
+
+Question-level stats come from `quiz_answers`, which the game fills from the moment stats.sql is run.
 
 ## Publish on GitHub Pages
 1. Create a repository and upload these files.

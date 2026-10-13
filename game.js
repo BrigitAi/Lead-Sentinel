@@ -82,7 +82,8 @@
 
   async function saveGame(g) {
     if (!ONLINE) {
-      GAMES.push(g);
+      const { answers, ...keep } = g;
+      GAMES.push(keep);
       try { localStorage.setItem(GAMES_KEY, JSON.stringify(GAMES)); } catch (e) { /* storage unavailable */ }
       return true;
     }
@@ -90,6 +91,12 @@
       library: g.library || "mixed", sector: g.sector || null, points: g.points, correct: g.correct, asked: g.asked, best_streak: g.bestStreak
     });
     if (error) { console.error(error); return false; }
+    // Per-answer log for stats (best effort: never blocks saving the score)
+    const answers = (g.answers || []).filter(a => a.qid).map(a => ({
+      question_id: a.qid, library: g.library || "mixed", sector: g.sector || null,
+      correct: !!a.right, timed_out: !!a.timedOut, seconds: a.secs, points: a.gained || 0
+    }));
+    if (answers.length) db.from("quiz_answers").insert(answers).then(({ error: e }) => { if (e) console.warn("answer log:", e.message); });
     GAMES.push({ ...g, pid: user.id });
     return true;
   }
@@ -98,7 +105,7 @@
     const rows = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await db.from("quiz_questions")
-        .select("library, question, options, correct_index, explanation, source_title")
+        .select("id, library, question, options, correct_index, explanation, source_title")
         .eq("status", "approved").range(from, from + 999);
       if (error) { console.error(error); break; }
       rows.push(...data);
@@ -108,7 +115,7 @@
     rows.forEach(r => {
       const c = CATS.find(x => (LIB_BY_ID[x.id] || x.id) === r.library);
       if (c && Array.isArray(r.options) && r.options.length === 4)
-        c.questions.push({ q: r.question, options: r.options, answer: r.correct_index, explain: r.explanation, ref: r.source_title });
+        c.questions.push({ id: r.id, q: r.question, options: r.options, answer: r.correct_index, explain: r.explanation, ref: r.source_title });
     });
   }
   function getName() { try { return localStorage.getItem(PLAYER_KEY) || ""; } catch (e) { return ""; } }
@@ -384,7 +391,7 @@
     } else {
       st.streak = 0;
     }
-    st.log.push({ q: q.q, chosen: k >= 0 ? q.opts[k].t : "(time ran out)", correct: q.opts[okK].t, explain: q.explain, ref: q.ref, right, gained });
+    st.log.push({ qid: q.id, secs: Math.round((1 - st.timeLeft) * S.secondsPerQuestion * 10) / 10, timedOut: k < 0, q: q.q, chosen: k >= 0 ? q.opts[k].t : "(time ran out)", correct: q.opts[okK].t, explain: q.explain, ref: q.ref, right, gained });
     renderHud();
 
     const last = st.i === st.qs.length - 1;
@@ -417,7 +424,7 @@
     clearInterval(timerId);
     const correct = st.log.filter(l => l.right).length;
     const nextBtn = $("#next"); if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = "Saving…"; }
-    const saved = await saveGame({ pid: st.pid, name: st.name, sector: st.sector, library: st.library, category: st.catName, points: st.score, correct, asked: st.log.length, bestStreak: st.bestStreak, date: new Date().toISOString() });
+    const saved = await saveGame({ pid: st.pid, name: st.name, sector: st.sector, library: st.library, category: st.catName, points: st.score, correct, asked: st.log.length, bestStreak: st.bestStreak, date: new Date().toISOString(), answers: st.log });
     if (!saved) {
       if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = "Couldn't save — try again"; }
       return;
