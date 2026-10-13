@@ -25,7 +25,7 @@
   const db = ONLINE ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, { auth: { flowType: "implicit", persistSession: true, detectSessionInUrl: true } }) : null;
   const EMAIL_DOMAIN = (CFG.emailDomain || "brigit.co.za").toLowerCase();
   const ADMIN_EMAILS = (CFG.adminEmails || []).map(e => String(e).trim().toLowerCase());
-  let user = null, profile = null, isApprover = false, GAMES = [];
+  let user = null, profile = null, isApprover = false, GAMES = [], DRAFTS = {};
 
   /* ---------------- Fire-protection icon set ---------------- */
   const SHIELD = "M12 2.8l7.2 3v5.4c0 4.6-3.1 8.1-7.2 10-4.1-1.9-7.2-5.4-7.2-10V5.8z";
@@ -152,13 +152,18 @@
   const rankOf = (list, k) => { const i = list.findIndex(p => p.key === k); return i < 0 ? null : i + 1; };
 
   /* ---------------- Home ---------------- */
-  function card(id, ic, name, desc, n, soon) {
+  function card(id, ic, name, desc, n, soon, waiting) {
     const off = n === 0 || soon;
+    const status = soon ? "Coming soon"
+      : n > 0 ? n + " question" + (n === 1 ? "" : "s")
+      : isApprover && waiting ? `${waiting} waiting for approval`
+      : isApprover ? "No questions yet. Generate some in Review"
+      : "Questions on the way";
     return `<button class="cat" data-cat="${esc(id)}" ${off ? "disabled" : ""}>
       <span class="icon">${icon(ic || "flame")}</span>
       <span class="cname">${esc(name)}</span>
       <span class="cdesc">${esc(desc || "")}</span>
-      <span class="ccount">${off ? "Coming soon" : n + " question" + (n === 1 ? "" : "s")}</span>
+      <span class="ccount">${esc(status)}</span>
     </button>`;
   }
 
@@ -186,8 +191,11 @@
     }
     $("#mode-note").hidden = ONLINE;
     const total = CATS.filter(c => !c.comingSoon).reduce((n, c) => n + c.questions.length, 0);
-    $("#cats").innerHTML = CATS.map(c => card(c.id, c.icon, c.name, c.description, c.questions.length, c.comingSoon)).join("") +
-      card("mixed", "extinguisher", "Mixed Bag", "A bit of everything", total);
+    const allWaiting = Object.values(DRAFTS).reduce((a, b) => a + b, 0);
+    $("#cats").innerHTML = (isApprover && total === 0 && allWaiting
+        ? `<p class="approve-note">No questions are approved yet, so the races are closed. <a href="review.html">Approve questions in Review →</a></p>` : "") +
+      CATS.map(c => card(c.id, c.icon, c.name, c.description, c.questions.length, c.comingSoon, DRAFTS[c.id] || 0)).join("") +
+      card("mixed", "extinguisher", "Mixed Bag", "A bit of everything", total, false, allWaiting);
     $("#cats").querySelectorAll("button[data-cat]").forEach(b => { b.onclick = () => start(b.dataset.cat); });
     renderMe();
     renderBoard();
@@ -581,6 +589,10 @@
       db.rpc("quiz_is_approver")
     ]);
     isApprover = !!(appr && appr.data);
+    if (isApprover) {                      // approvers: how many drafts wait in each library
+      const { data } = await db.from("quiz_questions").select("library").eq("status", "draft").limit(5000);
+      DRAFTS = {}; (data || []).forEach(r => { DRAFTS[r.library] = (DRAFTS[r.library] || 0) + 1; });
+    }
     $("#loading").hidden = true;
     renderHome();
   }
