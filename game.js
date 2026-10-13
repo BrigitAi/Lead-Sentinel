@@ -56,7 +56,7 @@
   const entryKey = (pid, sector) => pid + "|" + (sector || "");
   const myKey = () => entryKey(myPid(), $("#sector").value);
   const mySectors = () => ONLINE && profile ? (profile.sectors && profile.sectors.length ? profile.sectors : [profile.sector]) : SECTORS;
-  let boardSector = "";
+  let boardSector = "", boardRace = "";
 
   /* ---------------- Storage ---------------- */
   const LIB_BY_ID = { fire: "fire", policies: "policies", datasheets: "datasheets", sds: "sds", ops: "ops", certification: "certification" };
@@ -117,17 +117,17 @@
   function setSector(n) { try { localStorage.setItem(SECTOR_KEY, n); } catch (e) { /* ignore */ } }
 
   /* ---------------- Leaderboard maths ---------------- */
-  function gamesIn(range) {
+  function gamesIn(range, race) {
     const now = new Date();
     const since = range === "week" ? new Date(now - 7 * 864e5)
       : range === "month" ? new Date(now.getFullYear(), now.getMonth(), 1) : new Date(0);
-    return loadGames().filter(g => new Date(g.date) >= since);
+    return loadGames().filter(g => new Date(g.date) >= since && (!race || g.library === race));
   }
 
   // One entry per competitor per sector. Pass a sector to see only that sector's table.
-  function standings(range, sector) {
+  function standings(range, sector, race) {
     const map = new Map();
-    gamesIn(range).forEach(g => {
+    gamesIn(range, race).forEach(g => {
       if (sector && g.sector !== sector) return;
       const pid = pidOf(g), k = entryKey(pid, g.sector);
       const p = map.get(k) || { key: k, pid, name: g.name, sector: g.sector || "", total: 0, games: 0, best: 0, correct: 0, asked: 0 };
@@ -138,9 +138,9 @@
     });
     return [...map.values()].sort((a, b) => b.total - a.total || b.best - a.best);
   }
-  function sectorStandings(range) {
+  function sectorStandings(range, race) {
     const map = new Map(SECTORS.map(n => [n, { name: n, total: 0, games: 0, players: new Set(), correct: 0, asked: 0 }]));
-    gamesIn(range).forEach(g => {
+    gamesIn(range, race).forEach(g => {
       if (!g.sector) return;
       const p = map.get(g.sector) || { name: g.sector, total: 0, games: 0, players: new Set(), correct: 0, asked: 0 };
       p.total += g.points; p.games++; p.players.add(pidOf(g)); p.correct += g.correct; p.asked += g.asked;
@@ -149,6 +149,7 @@
     return [...map.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
   }
 
+  const raceName = id => id === "mixed" ? "Mixed Bag" : ((CATS.find(c => c.id === id) || {}).name || id);
   const rankOf = (list, k) => { const i = list.findIndex(p => p.key === k); return i < 0 ? null : i + 1; };
 
   /* ---------------- Required races (e.g. Company Policies) ---------------- */
@@ -186,6 +187,12 @@
     const bs = $("#board-sector");
     bs.innerHTML = `<option value="">All sectors</option>` + SECTORS.map(n => `<option>${esc(n)}</option>`).join("");
     bs.value = boardSector;
+    const br = $("#board-race");
+    br.innerHTML = `<option value="">All races</option>` +
+      [...CATS].sort((a, b) => (b.required ? 1 : 0) - (a.required ? 1 : 0)).filter(c => !c.comingSoon)
+        .map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("") +
+      `<option value="mixed">Mixed Bag</option>`;
+    br.value = boardRace;
     if (ONLINE && profile) {
       $("#player").value = profile.display_name;
       $("#player").disabled = true;
@@ -246,7 +253,7 @@
     if (boardView === "sectors") return renderSectorBoard();
     $("#board-head").innerHTML = `<tr><th></th><th>Competitor</th><th class="num">Races</th><th class="num hide-sm">Accuracy</th><th class="num hide-sm">PB</th><th class="num">Points</th></tr>`;
     const me = myPid();
-    const list = standings(boardRange, boardSector);
+    const list = standings(boardRange, boardSector, boardRace);
     $("#board").innerHTML = list.length
       ? list.slice(0, 20).map((p, i) => {
           const medal = ["🥇", "🥈", "🥉"][i] || `<span class="pos">${i + 1}</span>`;
@@ -256,13 +263,13 @@
             <td class="num">${p.games}</td><td class="num hide-sm">${acc}%</td><td class="num hide-sm">${pts(p.best)}</td>
             <td class="num tot">${pts(p.total)}</td></tr>`;
         }).join("")
-      : `<tr><td colspan="6" class="empty">No races yet${boardSector ? " for " + esc(boardSector) : ""} this period — first to the start line takes top spot!</td></tr>`;
+      : `<tr><td colspan="6" class="empty">No ${boardRace ? esc(raceName(boardRace)) + " " : ""}races yet${boardSector ? " for " + esc(boardSector) : ""} this period — first to the start line takes top spot!</td></tr>`;
   }
 
   function renderSectorBoard() {
     const mine = ONLINE && profile ? mySectors() : [$("#sector").value];
     $("#board-head").innerHTML = `<tr><th></th><th>Sector</th><th class="num hide-sm">Players</th><th class="num hide-sm">Accuracy</th><th class="num">Races</th><th class="num">Points</th></tr>`;
-    const list = sectorStandings(boardRange);
+    const list = sectorStandings(boardRange, boardRace);
     const anyPlayed = list.some(s => s.games);
     $("#board").innerHTML = list.map((p, i) => {
       const medal = anyPlayed && p.games ? (["🥇", "🥈", "🥉"][i] || `<span class="pos">${i + 1}</span>`) : `<span class="pos">–</span>`;
@@ -460,6 +467,7 @@
   $("#player").addEventListener("input", () => { renderMe(); renderBoard(); });
   $("#sector").addEventListener("change", () => { setSector($("#sector").value); renderMe(); renderBoard(); });
   $("#board-sector").addEventListener("change", () => { boardSector = $("#board-sector").value; renderBoard(); });
+  $("#board-race").addEventListener("change", () => { boardRace = $("#board-race").value; renderBoard(); });
   document.querySelectorAll(".tab").forEach(t => { t.onclick = () => { boardRange = t.dataset.range; renderBoard(); }; });
   document.querySelectorAll(".view").forEach(t => { t.onclick = () => { boardView = t.dataset.view; renderBoard(); }; });
   $("#again").onclick = () => start(lastCat);

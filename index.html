@@ -72,6 +72,7 @@
   .play-for { display: grid; gap: 4px; }
   .play-for span a { text-transform: none; letter-spacing: 0; margin-left: 8px; font-size: 12px; }
   .play-for span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .board-filters { display: flex; gap: 8px; flex-wrap: wrap; }
   .board-sector { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--pitch); color: var(--text); font-size: 13px; max-width: 200px; }
   .sec-pick { border: 2px solid var(--line); border-radius: 12px; background: var(--pitch); padding: 10px 14px 12px; margin: 0; text-align: left; }
   .sec-pick legend { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 0 6px; }
@@ -390,7 +391,10 @@
             <button class="view" data-view="players"><span data-icon="helmet"></span> Competitors</button>
             <button class="view" data-view="sectors"><span data-icon="hydrant"></span> Sectors</button>
           </div>
-          <select id="board-sector" class="board-sector" aria-label="Show sector"></select>
+          <div class="board-filters">
+            <select id="board-race" class="board-sector" aria-label="Show race"></select>
+            <select id="board-sector" class="board-sector" aria-label="Show sector"></select>
+          </div>
           <div class="tabs" role="tablist">
             <button class="tab" data-range="week">This week</button>
             <button class="tab" data-range="month">This month</button>
