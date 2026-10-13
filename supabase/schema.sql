@@ -115,6 +115,8 @@ insert into public.quiz_approvers (email, name) values
   ('donald@brigit.co.za', 'Donald'),
   ('corne@brigit.co.za',  'Corne'),
   ('feri@brigit.co.za',   'Feri'),
-  ('brigitai@brigit.co.za', 'Brigit AI (testing)'),
   ('sysproai@elveygroup.com', 'Admin (Elvey Group)')
 on conflict (email) do update set name = excluded.name;
+
+-- brigitai@brigit.co.za is a normal competitor (test player), not an approver
+delete from public.quiz_approvers where email = 'brigitai@brigit.co.za';
