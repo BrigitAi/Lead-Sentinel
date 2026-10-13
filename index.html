@@ -28,6 +28,7 @@
     --head: "Oswald", "Arial Narrow", Impact, sans-serif;
   }
   * { box-sizing: border-box; }
+  a:not(.btn), a:not(.btn):visited { color: var(--icon); }  /* links bright orange, never browser purple */
   [hidden] { display: none !important; }
   body {
     margin: 0; min-height: 100vh; color: var(--text); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -130,7 +131,7 @@
   .gate-form input:focus, .gate-form select:focus { outline: none; border-color: var(--brand); }
   .login-msg { min-height: 1.4em; margin-top: 14px; }
   .pw-toggle { font-size: 13px; margin-top: 18px; }
-  .pw-toggle a { color: var(--muted); }
+  .pw-toggle a, .pw-toggle a:visited { color: var(--icon); }
   .account { display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
   .account b { color: var(--text); font-weight: 600; }
   .btn.small { padding: 6px 12px; font-size: 13px; text-decoration: none; display: inline-block; }

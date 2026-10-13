@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Question Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brand: #1fd6c4; --brand-d: #19b8a8; --ink: #06232a; --icon: #f85008; --focus: #1e6fae;
+    --brand-text: #1fd6c4;
+    --bg: #060f16; --pitch: #0a141c; --panel: #0c1b26; --panel2: #10232f; --line: #1c3442;
+    --text: #f5f7fa; --muted: #a8bbcb; --good: #40e0d0; --bad: #c8102e; --bad-text: #ff8a4c; --gold: #ff8a4c;
+    --head: "Oswald", "Arial Narrow", Impact, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  a:not(.btn), a:not(.btn):visited { color: var(--icon); }  /* links bright orange, never browser purple */
+  [hidden] { display: none !important; }
+  body { margin: 0; color: var(--text); font-family: Inter, system-ui, sans-serif; background: var(--bg); }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1, h2 { font-family: var(--head); text-transform: uppercase; letter-spacing: .04em; margin: 0; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .top img { height: 52px; background: #fff; padding: 6px 10px; border-radius: 10px; }
+  .muted { color: var(--muted); }
+  .btn { border: 2px solid var(--line); background: var(--panel); color: var(--text); padding: 8px 14px; border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer; text-decoration: none; }
+  .btn:hover { border-color: var(--brand); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.ok { background: var(--good); border-color: var(--good); color: var(--ink); }
+  .btn.no { border-color: var(--bad); color: var(--bad-text); background: transparent; }
+  .gen { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 18px; display: grid; gap: 10px; }
+  .gen h2 { font-size: 18px; margin: 0 0 4px; }
+  .gen p { margin: 0; }
+  .gen-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn.go { background: var(--brand); border-color: var(--brand); color: var(--ink); }
+  .btn.go:hover:not(:disabled) { background: var(--brand-d); }
+  .gen-msg { min-height: 1.3em; font-size: 14px; }
+  .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+  .tabs { display: flex; background: var(--pitch); border-radius: 10px; padding: 3px; }
+  .tab { border: 0; background: none; color: var(--muted); padding: 7px 12px; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .tab.on { background: var(--brand); color: var(--ink); }
+  select, input, textarea { font: inherit; color: var(--text); background: var(--pitch); border: 2px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+  select:focus, input:focus, textarea:focus { outline: none; border-color: var(--focus); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; margin-bottom: 10px; }
+  .tag { background: var(--brand); color: var(--ink); padding: 2px 8px; border-radius: 6px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .src { color: var(--gold); }
+  textarea { width: 100%; resize: vertical; }
+  .q { font-weight: 700; font-size: 16px; min-height: 52px; }
+  .opts { display: grid; gap: 6px; margin: 10px 0; }
+  .opt { display: flex; gap: 8px; align-items: center; }
+  .opt input[type=text] { flex: 1; }
+  .opt input[type=radio] { width: 20px; height: 20px; accent-color: var(--good); }
+  .opt.correct input[type=text] { border-color: var(--good); }
+  label.small { font-size: 12px; color: var(--muted); display: block; margin: 8px 0 4px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  .status { font-size: 13px; }
+  .gate { text-align: center; margin-top: 12vh; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Question review</h1>
+      <p class="muted" id="who" style="margin:4px 0 0"></p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <a class="btn" href="index.html">← Back to the game</a>
+      <img src="logo.png" alt="Brigit Fire" onerror="this.remove()">
+    </div>
+  </div>
+
+  <div id="gate" class="gate"><p class="muted">Loading…</p></div>
+
+  <div id="main" hidden>
+    <div class="gen">
+      <div>
+        <h2>Generate new questions</h2>
+        <p class="muted">Writes new draft questions from unused passages in ASH's library. They appear under Drafts for approval.</p>
+      </div>
+      <div class="gen-row">
+        <select id="gen-lib" aria-label="Library to generate from"></select>
+        <select id="gen-count" aria-label="How many questions">
+          <option value="5">5 questions</option>
+          <option value="10" selected>10 questions</option>
+          <option value="20">20 questions</option>
+          <option value="30">30 questions</option>
+        </select>
+        <button class="btn go" id="gen-go">Generate</button>
+      </div>
+      <p id="gen-msg" class="muted gen-msg"></p>
+    </div>
+    <div class="bar">
+      <div class="tabs" id="status-tabs">
+        <button class="tab on" data-status="draft">Drafts</button>
+        <button class="tab" data-status="approved">Approved</button>
+        <button class="tab" data-status="rejected">Rejected</button>
+      </div>
+      <select id="lib"></select>
+      <span class="muted" id="count"></span>
+    </div>
+    <div id="list"></div>
+    <div style="text-align:center"><button class="btn" id="more" hidden>Load more</button></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="questions.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const CFG = window.QUIZ_CONFIG || {};
+  const LIBS = (window.QUIZ_CATEGORIES || []).map(c => ({ id: c.id, name: c.name }));
+  const libName = id => (LIBS.find(l => l.id === id) || { name: id }).name;
+  const PAGE = 25;
+  let db, user, status = "draft", lib = "", offset = 0;
+
+  function gate(html) { $("#gate").innerHTML = html; $("#gate").hidden = false; $("#main").hidden = true; }
+
+  async function boot() {
+    if (!(CFG.supabaseUrl && CFG.supabaseAnonKey && window.supabase)) return gate(`<p>The game isn't connected to Supabase yet (see <code>config.js</code>).</p>`);
+    db = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, { auth: { flowType: "implicit", persistSession: true, detectSessionInUrl: true } });
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) return gate(`<p>Please <a href="index.html">sign in on the game page</a> first, then come back here.</p>`);
+    user = session.user;
+    const { data: ok } = await db.rpc("quiz_is_approver");
+    if (!ok) return gate(`<p>${esc(user.email)} isn't on the approvers list.</p><p class="muted">Ask an administrator to add you to <code>quiz_approvers</code>.</p>`);
+    $("#who").textContent = "Reviewing as " + user.email;
+    $("#lib").innerHTML = `<option value="">All libraries</option>` + LIBS.map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join("");
+    $("#gate").hidden = true; $("#main").hidden = false;
+    document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+      status = t.dataset.status;
+      document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));
+      reload();
+    });
+    $("#lib").onchange = () => { lib = $("#lib").value; reload(); };
+    $("#more").onclick = () => load(false);
+    $("#gen-lib").innerHTML = `<option value="all">All libraries</option>` +
+      LIBS.filter(l => l.id !== "certification").map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join("");
+    $("#gen-go").onclick = generate;
+    reload();
+  }
+
+  async function generate() {
+    const library = $("#gen-lib").value, count = +$("#gen-count").value;
+    const msg = $("#gen-msg"), btn = $("#gen-go");
+    btn.disabled = true; msg.style.color = "";
+    msg.textContent = `Writing ${count} question${count === 1 ? "" : "s"} from ${library === "all" ? "all libraries" : libName(library)}… this can take a minute.`;
+    const { data, error } = await db.functions.invoke("quiz-generate", { body: { library, count } });
+    btn.disabled = false;
+    let detail = data;
+    if (error && error.context && typeof error.context.json === "function") { try { detail = await error.context.json(); } catch (e) { /* ignore */ } }
+    if (error && !(detail && detail.created)) {
+      msg.style.color = "var(--bad-text)";
+      msg.textContent = "Couldn't generate: " + ((detail && (detail.error || (detail.errors || []).join("; "))) || error.message);
+      return;
+    }
+    const parts = (detail.results || []).map(r => `${libName(r.library)} ${r.created}` + (r.note ? ` (${r.note.toLowerCase()})` : ""));
+    msg.style.color = "var(--good)";
+    msg.textContent = `Added ${detail.created} new draft question${detail.created === 1 ? "" : "s"}` + (parts.length > 1 ? ` — ${parts.join(", ")}` : "") +
+      (detail.skipped ? `. ${detail.skipped} passage${detail.skipped === 1 ? " was" : "s were"} skipped as unsuitable.` : ".") +
+      ((detail.errors || []).length ? ` Some libraries failed: ${detail.errors.join("; ")}` : "");
+    if (status === "draft") reload();
+  }
+
+  function reload() { offset = 0; $("#list").innerHTML = ""; load(true); }
+
+  async function load(fresh) {
+    let q = db.from("quiz_questions").select("*", { count: "exact" }).eq("status", status)
+      .order("created_at", { ascending: true }).range(offset, offset + PAGE - 1);
+    if (lib) q = q.eq("library", lib);
+    const { data, error, count } = await q;
+    if (error) { $("#list").innerHTML = `<p class="empty">Couldn't load questions: ${esc(error.message)}</p>`; return; }
+    if (fresh) $("#count").textContent = `${count} question${count === 1 ? "" : "s"}`;
+    if (fresh && !data.length) $("#list").innerHTML = `<p class="empty">Nothing here.</p>`;
+    data.forEach(r => $("#list").appendChild(card(r)));
+    offset += data.length;
+    $("#more").hidden = offset >= count;
+  }
+
+  function card(r) {
+    const el = document.createElement("div");
+    el.className = "card";
+    el.innerHTML = `
+      <div class="meta"><span class="tag">${esc(libName(r.library))}</span>
+        ${r.source_title ? `<span class="src">📄 ${esc(r.source_title)}</span>` : ""}
+        ${r.reviewed_by ? `<span class="muted">· last reviewed by ${esc(r.reviewed_by)}</span>` : ""}</div>
+      <textarea class="q" rows="2" aria-label="Question">${esc(r.question)}</textarea>
+      <div class="opts">${r.options.map((o, i) => `
+        <label class="opt ${i === r.correct_index ? "correct" : ""}">
+          <input type="radio" name="c-${r.id}" value="${i}" ${i === r.correct_index ? "checked" : ""} title="Mark as correct answer">
+          <input type="text" value="${esc(o)}" aria-label="Answer ${"ABCD"[i]}">
+        </label>`).join("")}</div>
+      <label class="small">Explanation (shown to players after they answer)</label>
+      <textarea class="ex" rows="2">${esc(r.explanation || "")}</textarea>
+      ${r.review_note ? `<p class="muted" style="font-size:13px">Note: ${esc(r.review_note)}</p>` : ""}
+      <div class="actions">
+        <button class="btn ok" data-act="approved">${r.status === "approved" ? "Save" : "Approve"}</button>
+        ${r.status !== "rejected" ? `<button class="btn no" data-act="rejected">Reject</button>` : ""}
+        ${r.status !== "draft" ? `<button class="btn" data-act="draft">Move back to drafts</button>` : ""}
+        <span class="status muted"></span>
+      </div>`;
+    el.querySelectorAll("input[type=radio]").forEach(rd => rd.onchange = () =>
+      el.querySelectorAll(".opt").forEach((o, i) => o.classList.toggle("correct", i === +rd.value)));
+    el.querySelectorAll("[data-act]").forEach(b => b.onclick = () => save(el, r, b.dataset.act));
+    return el;
+  }
+
+  async function save(el, r, next) {
+    const question = el.querySelector(".q").value.trim();
+    const options = [...el.querySelectorAll(".opt input[type=text]")].map(i => i.value.trim());
+    const correct = el.querySelector("input[type=radio]:checked");
+    const msg = el.querySelector(".status");
+    if (next === "approved" && (!question || options.some(o => !o) || !correct)) { msg.textContent = "Fill in the question, all 4 answers and the correct one first."; msg.style.color = "var(--bad-text)"; return; }
+    let note = r.review_note;
+    if (next === "rejected") { note = prompt("Why is this question being rejected? (optional)", "") ; if (note === null) return; }
+    el.querySelectorAll("button").forEach(b => b.disabled = true);
+    const { error } = await db.from("quiz_questions").update({
+      question, options, correct_index: correct ? +correct.value : r.correct_index,
+      explanation: el.querySelector(".ex").value.trim() || null,
+      status: next, review_note: note || null, reviewed_by: user.email, reviewed_at: new Date().toISOString()
+    }).eq("id", r.id);
+    if (error) { el.querySelectorAll("button").forEach(b => b.disabled = false); msg.textContent = "Couldn't save: " + error.message; msg.style.color = "var(--bad-text)"; return; }
+    if (next === r.status) { msg.textContent = "Saved ✓"; msg.style.color = "var(--good)"; el.querySelectorAll("button").forEach(b => b.disabled = false); return; }
+    el.style.transition = "opacity .3s"; el.style.opacity = "0";
+    setTimeout(() => { el.remove(); offset--; }, 300);
+    const c = $("#count"); const n = parseInt(c.textContent, 10) - 1; c.textContent = `${n} question${n === 1 ? "" : "s"}`;
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
