@@ -8,7 +8,7 @@ Runs in any browser: plain HTML + JavaScript, ready for GitHub Pages.
 🔥 Fire Standards · 📋 Company Policies · 📦 Datasheets · 🧪 Safety Data Sheets · 🎓 Operational Manuals · ✅ Product Certification *(coming soon)* · 🎲 Mixed Bag
 
 ## Sectors
-Each player picks a sector, and sectors compete on their own table:
+Competitors tick every sector they work in when they join (or **Select all sectors**). Before each race they choose which sector they're **playing for**, and that race counts for that sector only. The Competitors table therefore has one row per competitor per sector, with a filter to show a single sector. Sectors also compete on their own table:
 Technical Johannesburg · Exports · Passive Fire Containment · Special Risk · Sprinklers & Valves · Fire Detection · Gas Suppression · Portable Extinguishers
 
 ## Scoring
@@ -16,10 +16,10 @@ Technical Johannesburg · Exports · Passive Fire Containment · Special Risk ·
 - **Speed bonus** up to +100 (more time left = more points)
 - **Combo:** 3 correct in a row = ×1.5, 5 in a row = ×2
 - Wrong answer or time-out = 0 points and the streak resets
-- Every round's points add to the player's season total **and** their sector's total
+- Every round's points add to the player's season total in the sector they played for, **and** to that sector's total
 
 ## League tables
-- **Competitors:** rank, sector, games played, accuracy, best round, total points
+- **Competitors:** one row per competitor per sector: rank, sector, games played, accuracy, best round, total points. Filter: All sectors or one sector
 - **Sectors:** total points, players, games, accuracy
 - Filters: This week / This month / All time
 
@@ -39,6 +39,9 @@ After every answer the explanation and reference (SANS standard, SDS section, ma
 | `config.js` | Supabase connection (empty = offline mode) |
 | `review.html` | Question approval page for approvers |
 | `supabase/schema.sql` | Database tables and access rules |
+| `supabase/sectors.sql` | Multiple sectors per competitor (run once after schema.sql) |
+| `supabase/generate.sql` | Support for the question generator (run once after schema.sql) |
+| `supabase/functions/quiz-generate/index.ts` | Edge Function that writes new draft questions with AI |
 
 Question format:
 ```js
@@ -51,7 +54,7 @@ The game runs **offline** (sample questions, scores per device) until `config.js
 
 - **Questions** come from `quiz_questions`. Only questions with status *approved* are played.
 - **Results** go to `quiz_results`, and every competitor sees one shared league table.
-- **Sign-in** uses a one-time email link and accepts `@brigit.co.za` addresses, plus the admin addresses listed in `config.js` (`adminEmails`), which must also be approvers. First-timers choose a display name and sector, and the sector is fixed after that.
+- **Sign-in** uses a one-time email link and accepts `@brigit.co.za` addresses, plus the admin addresses listed in `config.js` (`adminEmails`), which must also be approvers. First-timers choose a display name and one or more sectors, which are fixed after that. An admin can change them in Supabase (`quiz_profiles.sectors`).
 - **Approvers** (listed in `quiz_approvers`) get a *Review questions* button that opens `review.html`. There they can edit, approve or reject draft questions.
 
 Status (13 Oct 2026):
@@ -59,6 +62,16 @@ Status (13 Oct 2026):
 - Done: 114 draft questions written from ASH's library (Fire Standards 23, SDS 22, Company Policies 25, Operational Manuals 23, Datasheets 21). They go live once approved on `review.html`.
 - To do: add the GitHub Pages address in Supabase → Authentication → URL Configuration (Site URL and Redirect URLs), or sign-in links won't return to the game.
 - To do: set up custom SMTP in Supabase → Authentication → Emails before rollout. The built-in mailer only sends a handful of sign-in emails per hour.
+
+## Generating new questions
+Approvers see a **Generate new questions** panel at the top of `review.html`. They pick a library (or *All libraries*) and how many questions, then click **Generate**. The Edge Function picks unused, substantive passages from ASH's library, asks an AI model for one multiple-choice question per passage, and saves them as **drafts**. Nothing goes live until an approver approves it. Each passage is used only once.
+
+One-time setup:
+1. Run `supabase/generate.sql` in the Supabase SQL editor.
+2. Supabase → **Edge Functions → Deploy a new function → Via editor**, name it `quiz-generate`, paste `supabase/functions/quiz-generate/index.ts` and click **Deploy**.
+3. Supabase → **Edge Functions → Secrets**, add `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY` plus `LLM_PROVIDER` = `openai`). Optional: `QUIZ_MODEL` to choose the model.
+
+Every run is logged in the `quiz_generation_runs` table (who, which library, how many).
 
 The publishable key in `config.js` is designed to be public. Never put a secret (`sb_secret_…`) or service-role key in this repository.
 

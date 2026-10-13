@@ -69,6 +69,17 @@
   #r-sector b { color: var(--text); }
   .shake { animation: shake .4s; border-color: var(--bad) !important; }
   @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  .play-for { display: grid; gap: 4px; }
+  .play-for span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .board-sector { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--pitch); color: var(--text); font-size: 13px; max-width: 200px; }
+  .sec-pick { border: 2px solid var(--line); border-radius: 12px; background: var(--pitch); padding: 10px 14px 12px; margin: 0; text-align: left; }
+  .sec-pick legend { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 0 6px; }
+  .sec-pick label { display: flex; align-items: center; gap: 10px; padding: 6px 2px; cursor: pointer; color: var(--text); font-size: 15px; }
+  .gate-form .sec-pick input { width: 18px; height: 18px; padding: 0; margin: 0; border: 0; accent-color: var(--icon); flex: none; }
+  .sec-pick label { justify-content: flex-start; text-align: left; }
+  .sec-all { font-weight: 700; border-bottom: 1px solid var(--line); margin-bottom: 4px; padding-bottom: 8px !important; }
+  .sec-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+  @media (max-width: 480px) { .sec-list { grid-template-columns: 1fr; } }
   .me { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
   .me div { display: flex; flex-direction: column; justify-content: center; }
   .me small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
@@ -267,10 +278,14 @@
   <!-- ===== FIRST-TIME PROFILE (online mode) ===== -->
   <section id="profile" class="screen gate" hidden>
     <h1>Join the league</h1>
-    <p class="muted">This is how you'll appear on the leaderboard. Your sector can't be changed later, so choose carefully.</p>
+    <p class="muted">This is how you'll appear on the leaderboard. Tick every sector you work in. Each race counts for the sector you play it for. Sectors can't be changed later, so choose carefully.</p>
     <div class="gate-form col">
       <input id="pf-name" placeholder="Display name" maxlength="30" aria-label="Display name">
-      <select id="pf-sector" aria-label="Your sector"></select>
+      <fieldset class="sec-pick" id="pf-sectors">
+        <legend>Your sectors</legend>
+        <label class="sec-all"><input type="checkbox" id="pf-all"> Select all sectors</label>
+        <div id="pf-list" class="sec-list"></div>
+      </fieldset>
       <button class="btn go" id="pf-save">Enter the league</button>
     </div>
     <p id="pf-msg" class="login-msg bad-t"></p>
@@ -296,7 +311,7 @@
     <div class="player-bar">
       <div class="who">
         <input id="player" placeholder="Your name" maxlength="30" autocomplete="name" aria-label="Your name">
-        <select id="sector" aria-label="Your sector"></select>
+        <label class="play-for"><span>Playing for</span><select id="sector" aria-label="Sector you are playing for"></select></label>
       </div>
       <div id="me" class="me" hidden></div>
     </div>
@@ -308,7 +323,7 @@
         <div class="scoring">
           <b>How scoring works:</b> 100 pts per correct answer + up to 100 sprint bonus for answering fast.
           3 in a row = <b>×1.5 pace boost</b>, 5 in a row = <b>×2 pace boost</b>.
-          Every round adds to your season total — and to your sector's — so the more you play, the higher you climb.
+          Every round adds to your season total in the sector you play for — and to that sector's total — so the more you play, the higher you climb.
         </div>
       </div>
 
@@ -318,6 +333,7 @@
             <button class="view" data-view="players"><span data-icon="helmet"></span> Competitors</button>
             <button class="view" data-view="sectors"><span data-icon="hydrant"></span> Sectors</button>
           </div>
+          <select id="board-sector" class="board-sector" aria-label="Show sector"></select>
           <div class="tabs" role="tablist">
             <button class="tab" data-range="week">This week</button>
             <button class="tab" data-range="month">This month</button>
