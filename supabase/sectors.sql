@@ -16,9 +16,8 @@ alter table public.quiz_profiles alter column sectors set not null;
 
 alter table public.quiz_profiles drop constraint if exists quiz_profiles_sectors_check;
 alter table public.quiz_profiles add constraint quiz_profiles_sectors_check check (
-  cardinality(sectors) between 1 and 8
-  and sectors <@ array['Technical Johannesburg','Exports','Passive Fire Containment','Special Risk',
-                       'Sprinklers & Valves','Fire Detection','Gas Suppression','Portable Extinguishers']::text[]
+  cardinality(sectors) >= 1
+  and sectors <@ public.quiz_sector_list()
   and sector = any(sectors)        -- "sector" stays as the main sector
 );
 

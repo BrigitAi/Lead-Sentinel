@@ -34,7 +34,11 @@ window.SECTORS = [
   "Sprinklers & Valves",
   "Fire Detection",
   "Gas Suppression",
-  "Portable Extinguishers"
+  "Portable Extinguishers",
+  "Finance/Admin",
+  "Procurement",
+  "Production",
+  "Sales"
 ];
 
 window.QUIZ_CATEGORIES = [

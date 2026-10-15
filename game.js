@@ -683,7 +683,9 @@
     });
     $("#pf-save").onclick = saveProfile;
     $("#signout").onclick = async () => { await db.auth.signOut(); location.reload(); };
-    $("#pf-list").innerHTML = SECTORS.map(n => `<label><input type="checkbox" value="${esc(n)}"> ${esc(n)}</label>`).join("");
+    // New players start with every sector ticked; they untick the ones they don't work in.
+    $("#pf-list").innerHTML = SECTORS.map(n => `<label><input type="checkbox" value="${esc(n)}" checked> ${esc(n)}</label>`).join("");
+    $("#pf-all").checked = true;
     const boxes = () => [...document.querySelectorAll("#pf-list input")];
     $("#pf-all").onchange = () => { boxes().forEach(b => { b.checked = $("#pf-all").checked; }); };
     $("#pf-list").onchange = syncAll;

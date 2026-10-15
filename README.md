@@ -8,8 +8,8 @@ Runs in any browser: plain HTML + JavaScript, ready for GitHub Pages.
 🔥 Fire Standards · 📋 Company Policies · 📦 Datasheets · 🧪 Safety Data Sheets · 🎓 Operational Manuals · ✅ Product Certification *(coming soon)* · 🎲 Mixed Bag
 
 ## Sectors
-Competitors tick every sector they work in when they join (or **Select all sectors**). Before each race they choose which sector they're **playing for**, and that race counts for that sector only. The Competitors table therefore has one row per competitor per sector, with a filter to show a single sector. Sectors also compete on their own table:
-Technical Johannesburg · Exports · Passive Fire Containment · Special Risk · Sprinklers & Valves · Fire Detection · Gas Suppression · Portable Extinguishers
+When competitors join, every sector starts ticked; they untick the ones they don't work in. Before each race they choose which sector they're **playing for**, and that race counts for that sector only. The Competitors table therefore has one row per competitor per sector, with a filter to show a single sector. Sectors also compete on their own table:
+Technical Johannesburg · Exports · Passive Fire Containment · Special Risk · Sprinklers & Valves · Fire Detection · Gas Suppression · Portable Extinguishers · Finance/Admin · Procurement · Production · Sales
 
 ## Scoring
 - **100 points** per correct answer
@@ -47,6 +47,7 @@ After every answer the explanation and reference (SANS standard, SDS section, ma
 | `supabase/upload.sql` | Lets approvers upload their own questions (run once) |
 | `supabase/players.sql` | Registered players list for approvers on review.html (run once) |
 | `supabase/stats.sql` | Stats views for ASH and reports, plus the per-answer log (run once) |
+| `supabase/sectors_add.sql` | Adds Finance/Admin, Procurement, Production, Sales; sector list now in `quiz_sector_list()` (run once) |
 | `supabase/generate.sql` | Support for the question generator (run once after schema.sql) |
 | `supabase/functions/quiz-generate/index.ts` | Edge Function that writes new draft questions with AI |
 

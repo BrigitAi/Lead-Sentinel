@@ -10,13 +10,18 @@ create table if not exists public.quiz_approvers (
   name  text not null
 );
 
+-- ---------- The list of sectors (edit here to add or rename a sector) ----------
+create or replace function public.quiz_sector_list() returns text[] language sql immutable as $$
+  select array['Technical Johannesburg','Exports','Passive Fire Containment','Special Risk',
+    'Sprinklers & Valves','Fire Detection','Gas Suppression','Portable Extinguishers',
+    'Finance/Admin','Procurement','Production','Sales']::text[];
+$$;
+
 -- ---------- Competitor profiles ----------
 create table if not exists public.quiz_profiles (
   user_id      uuid primary key references auth.users(id) on delete cascade,
   display_name text not null check (char_length(display_name) between 2 and 30),
-  sector       text not null check (sector in (
-                 'Technical Johannesburg','Exports','Passive Fire Containment','Special Risk',
-                 'Sprinklers & Valves','Fire Detection','Gas Suppression','Portable Extinguishers')),
+  sector       text not null check (sector = any (public.quiz_sector_list())),
   created_at   timestamptz not null default now()
 );
 
