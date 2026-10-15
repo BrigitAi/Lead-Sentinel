@@ -34,7 +34,11 @@ window.SECTORS = [
   "Sprinklers & Valves",
   "Fire Detection",
   "Gas Suppression",
-  "Portable Extinguishers",
+  "Portable Extinguishers"
+];
+
+// Business divisions — every competitor picks ONE when joining
+window.DIVISIONS = [
   "Finance/Admin",
   "Procurement",
   "Production",

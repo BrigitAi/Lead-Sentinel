@@ -37,7 +37,7 @@ create policy "results insert own" on public.quiz_results for insert to authenti
 -- ---------- League table view: sector now comes from the race ----------
 create or replace view public.quiz_results_board with (security_invoker = true) as
   select r.created_at, r.points, r.correct, r.asked, r.library, p.user_id, p.display_name,
-         coalesce(r.sector, p.sector) as sector
+         coalesce(r.sector, p.sector) as sector, p.division
   from public.quiz_results r join public.quiz_profiles p on p.user_id = r.user_id;
 
 revoke all on public.quiz_results_board from anon;

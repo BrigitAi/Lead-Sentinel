@@ -31,7 +31,7 @@ revoke all on public.quiz_answers from anon;
 drop function if exists public.quiz_stats_summary();
 drop view if exists public.quiz_stats_leaderboard, public.quiz_stats_leaderboard_by_sector, public.quiz_stats_sectors,
   public.quiz_stats_most_played, public.quiz_stats_question_repeats, public.quiz_stats_questions,
-  public.quiz_stats_play_hours, public.quiz_stats_play_times, public.quiz_stats_required_completion, public.quiz_stats_races cascade;
+  public.quiz_stats_play_hours, public.quiz_stats_play_times, public.quiz_stats_required_completion, public.quiz_stats_divisions, public.quiz_stats_races cascade;
 
 -- Friendly race names
 create or replace function public.quiz_race_name(lib text) returns text language sql immutable as $$
@@ -44,13 +44,14 @@ $$;
 create or replace view public.quiz_stats_races with (security_invoker = true) as
   select r.id, r.created_at, (r.created_at at time zone 'Africa/Johannesburg') as played_at_sa,
          r.user_id, p.display_name as competitor, coalesce(r.sector, p.sector) as sector,
-         public.quiz_race_name(r.library) as race, r.points, r.correct, r.asked, r.best_streak
+         public.quiz_race_name(r.library) as race, r.points, r.correct, r.asked, r.best_streak,
+         coalesce(p.division, 'Not chosen yet') as division
   from public.quiz_results r join public.quiz_profiles p on p.user_id = r.user_id;
 
 -- 1) WHO IS IN THE LEAD — competitors (all races, all sectors), with week / month / season totals
 create or replace view public.quiz_stats_leaderboard with (security_invoker = true) as
   select rank() over (order by sum(points) desc) as rank,
-         competitor,
+         competitor, division,
          string_agg(distinct sector, ', ') as sectors_played_for,
          sum(points)                                                        as season_points,
          sum(points) filter (where played_at_sa >= date_trunc('month', now() at time zone 'Africa/Johannesburg')) as month_points,
@@ -60,7 +61,7 @@ create or replace view public.quiz_stats_leaderboard with (security_invoker = tr
          round(100.0 * sum(correct) / nullif(sum(asked), 0), 1)             as accuracy_pct,
          max(played_at_sa)                                                  as last_played_sa
   from public.quiz_stats_races
-  group by user_id, competitor
+  group by user_id, competitor, division
   order by season_points desc;
 
 -- 1b) Leaderboard per competitor per sector (matches the game's table)
@@ -79,6 +80,15 @@ create or replace view public.quiz_stats_sectors with (security_invoker = true) 
          round(100.0 * sum(correct) / nullif(sum(asked), 0), 1) as accuracy_pct
   from public.quiz_stats_races
   group by sector
+  order by points desc;
+
+-- 1d) Business division table
+create or replace view public.quiz_stats_divisions with (security_invoker = true) as
+  select rank() over (order by sum(points) desc) as rank, division,
+         sum(points) as points, count(*) as races_played, count(distinct user_id) as competitors,
+         round(100.0 * sum(correct) / nullif(sum(asked), 0), 1) as accuracy_pct
+  from public.quiz_stats_races
+  group by division
   order by points desc;
 
 -- 2) WHO PLAYS THE MOST — races per competitor per race type (e.g. Company Policies)
@@ -145,8 +155,9 @@ create or replace function public.quiz_stats_summary()
 returns jsonb language sql stable security invoker set search_path = public as $$
   select jsonb_build_object(
     'generated_at_sa',  now() at time zone 'Africa/Johannesburg',
-    'leaders',          (select coalesce(jsonb_agg(l), '[]') from (select rank, competitor, season_points, races_played, accuracy_pct from quiz_stats_leaderboard limit 10) l),
+    'leaders',          (select coalesce(jsonb_agg(l), '[]') from (select rank, competitor, division, season_points, races_played, accuracy_pct from quiz_stats_leaderboard limit 10) l),
     'sectors',          (select coalesce(jsonb_agg(s), '[]') from (select rank, sector, points, races_played, competitors from quiz_stats_sectors) s),
+    'divisions',        (select coalesce(jsonb_agg(d), '[]') from (select rank, division, points, races_played, competitors from quiz_stats_divisions) d),
     'most_races',       (select coalesce(jsonb_agg(m), '[]') from (select competitor, sum(races_played) as races_played from quiz_stats_most_played group by competitor order by 2 desc limit 10) m),
     'most_played_by_race', (select coalesce(jsonb_agg(m), '[]') from (select race, competitor, races_played from quiz_stats_most_played where rank_in_race = 1) m),
     'busiest_hours',    (select coalesce(jsonb_agg(h), '[]') from (select time_slot, races_played, competitors from quiz_stats_play_hours limit 5) h),
@@ -157,7 +168,7 @@ $$;
 
 -- Nobody signed-out can read stats
 revoke all on public.quiz_stats_races, public.quiz_stats_leaderboard, public.quiz_stats_leaderboard_by_sector,
-  public.quiz_stats_sectors, public.quiz_stats_most_played, public.quiz_stats_question_repeats,
+  public.quiz_stats_sectors, public.quiz_stats_divisions, public.quiz_stats_most_played, public.quiz_stats_question_repeats,
   public.quiz_stats_questions, public.quiz_stats_play_hours, public.quiz_stats_play_times,
   public.quiz_stats_required_completion from anon;
 revoke all on function public.quiz_stats_summary() from public, anon;

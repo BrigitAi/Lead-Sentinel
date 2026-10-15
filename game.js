@@ -14,6 +14,7 @@
   const PLAYER_KEY = "btl-player";   // remembers the name on this device
   const SECTOR_KEY = "btl-sector";   // remembers the sector on this device
   const SECTORS = window.SECTORS || [];
+  const DIVISIONS = window.DIVISIONS || [];
 
   const $ = s => document.querySelector(s);
   let st = null, timerId = null, lastCat = null, boardRange = "all", boardView = "players";
@@ -56,7 +57,7 @@
   const entryKey = (pid, sector) => pid + "|" + (sector || "");
   const myKey = () => entryKey(myPid(), $("#sector").value);
   const mySectors = () => ONLINE && profile ? (profile.sectors && profile.sectors.length ? profile.sectors : [profile.sector]) : SECTORS;
-  let boardSector = "", boardRace = "";
+  let boardSector = "", boardRace = "", boardDivision = "";
 
   /* ---------------- Storage ---------------- */
   const LIB_BY_ID = { fire: "fire", policies: "policies", datasheets: "datasheets", sds: "sds", ops: "ops", certification: "certification" };
@@ -71,13 +72,13 @@
     const rows = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await db.from("quiz_results_board")
-        .select("created_at, points, correct, asked, user_id, display_name, sector, library")
+        .select("created_at, points, correct, asked, user_id, display_name, sector, library, division")
         .order("created_at", { ascending: true }).range(from, from + 999);
       if (error) { console.error(error); break; }
       rows.push(...data);
       if (data.length < 1000) break;
     }
-    GAMES = rows.map(r => ({ pid: r.user_id, name: r.display_name, sector: r.sector, library: r.library, points: r.points, correct: r.correct, asked: r.asked, date: r.created_at }));
+    GAMES = rows.map(r => ({ pid: r.user_id, name: r.display_name, sector: r.sector, division: r.division || "", library: r.library, points: r.points, correct: r.correct, asked: r.asked, date: r.created_at }));
   }
 
   async function saveGame(g) {
@@ -97,7 +98,7 @@
       correct: !!a.right, timed_out: !!a.timedOut, seconds: a.secs, points: a.gained || 0
     }));
     if (answers.length) db.from("quiz_answers").insert(answers).then(({ error: e }) => { if (e) console.warn("answer log:", e.message); });
-    GAMES.push({ ...g, pid: user.id });
+    GAMES.push({ ...g, pid: user.id, division: (profile && profile.division) || "" });
     return true;
   }
 
@@ -132,18 +133,29 @@
   }
 
   // One entry per competitor per sector. Pass a sector to see only that sector's table.
-  function standings(range, sector, race) {
+  function standings(range, sector, race, division) {
     const map = new Map();
     gamesIn(range, race).forEach(g => {
       if (sector && g.sector !== sector) return;
+      if (division && g.division !== division) return;
       const pid = pidOf(g), k = entryKey(pid, g.sector);
       const p = map.get(k) || { key: k, pid, name: g.name, sector: g.sector || "", total: 0, games: 0, best: 0, correct: 0, asked: 0 };
-      p.name = g.name;
+      p.name = g.name; p.division = g.division || p.division || "";
       p.total += g.points; p.games++; p.best = Math.max(p.best, g.points);
       p.correct += g.correct; p.asked += g.asked;
       map.set(k, p);
     });
     return [...map.values()].sort((a, b) => b.total - a.total || b.best - a.best);
+  }
+  function divisionStandings(range, race) {
+    const map = new Map(DIVISIONS.map(n => [n, { name: n, total: 0, games: 0, players: new Set(), correct: 0, asked: 0 }]));
+    gamesIn(range, race).forEach(g => {
+      if (!g.division) return;
+      const p = map.get(g.division) || { name: g.division, total: 0, games: 0, players: new Set(), correct: 0, asked: 0 };
+      p.total += g.points; p.games++; p.players.add(pidOf(g)); p.correct += g.correct; p.asked += g.asked;
+      map.set(g.division, p);
+    });
+    return [...map.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
   }
   function sectorStandings(range, race) {
     const map = new Map(SECTORS.map(n => [n, { name: n, total: 0, games: 0, players: new Set(), correct: 0, asked: 0 }]));
@@ -200,6 +212,9 @@
         .map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("") +
       `<option value="mixed">Mixed Bag</option>`;
     br.value = boardRace;
+    const bd = $("#board-division");
+    bd.innerHTML = `<option value="">All divisions</option>` + DIVISIONS.map(n => `<option>${esc(n)}</option>`).join("");
+    bd.value = boardDivision;
     if (ONLINE && profile) {
       $("#player").value = profile.display_name;
       $("#player").disabled = true;
@@ -256,21 +271,37 @@
     document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.range === boardRange));
     document.querySelectorAll(".view").forEach(t => t.classList.toggle("on", t.dataset.view === boardView));
     $("#board").closest("table").classList.toggle("sectors", boardView === "sectors");
-    $("#board-sector").hidden = boardView === "sectors";
+    $("#board").closest("table").classList.toggle("divisions", boardView === "divisions");
+    $("#board-sector").hidden = boardView !== "players";
+    $("#board-division").hidden = boardView !== "players";
     if (boardView === "sectors") return renderSectorBoard();
+    if (boardView === "divisions") return renderGroupBoard("Division", divisionStandings(boardRange, boardRace), profile && profile.division ? [profile.division] : []);
     $("#board-head").innerHTML = `<tr><th></th><th>Competitor</th><th class="num">Races</th><th class="num hide-sm">Accuracy</th><th class="num hide-sm">PB</th><th class="num">Points</th></tr>`;
     const me = myPid();
-    const list = standings(boardRange, boardSector, boardRace);
+    const list = standings(boardRange, boardSector, boardRace, boardDivision);
     $("#board").innerHTML = list.length
       ? list.slice(0, 20).map((p, i) => {
           const medal = ["🥇", "🥈", "🥉"][i] || `<span class="pos">${i + 1}</span>`;
           const acc = p.asked ? Math.round(p.correct / p.asked * 100) : 0;
           return `<tr class="${p.pid === me ? "mine" : ""} ${i < 3 ? "top" : ""}">
-            <td class="r">${medal}</td><td class="n">${esc(p.name)}${p.sector ? `<small class="sec">${esc(p.sector)}</small>` : ""}</td>
+            <td class="r">${medal}</td><td class="n">${esc(p.name)}${p.sector ? `<small class="sec">${esc(p.sector)}${p.division ? " · " + esc(p.division) : ""}</small>` : ""}</td>
             <td class="num">${p.games}</td><td class="num hide-sm">${acc}%</td><td class="num hide-sm">${pts(p.best)}</td>
             <td class="num tot">${pts(p.total)}</td></tr>`;
         }).join("")
-      : `<tr><td colspan="6" class="empty">No ${boardRace ? esc(raceName(boardRace)) + " " : ""}races yet${boardSector ? " for " + esc(boardSector) : ""} this period — first to the start line takes top spot!</td></tr>`;
+      : `<tr><td colspan="6" class="empty">No ${boardRace ? esc(raceName(boardRace)) + " " : ""}races yet${boardSector ? " for " + esc(boardSector) : ""}${boardDivision ? " in " + esc(boardDivision) : ""} this period — first to the start line takes top spot!</td></tr>`;
+  }
+
+  function renderGroupBoard(label, list, mine) {
+    $("#board-head").innerHTML = `<tr><th></th><th>${label}</th><th class="num hide-sm">Players</th><th class="num hide-sm">Accuracy</th><th class="num">Races</th><th class="num">Points</th></tr>`;
+    const anyPlayed = list.some(s => s.games);
+    $("#board").innerHTML = list.map((p, i) => {
+      const medal = anyPlayed && p.games ? (["🥇", "🥈", "🥉"][i] || `<span class="pos">${i + 1}</span>`) : `<span class="pos">–</span>`;
+      const acc = p.asked ? Math.round(p.correct / p.asked * 100) + "%" : "–";
+      return `<tr class="${mine.includes(p.name) ? "mine" : ""} ${anyPlayed && i < 3 && p.games ? "top" : ""}">
+        <td class="r">${medal}</td><td class="n">${esc(p.name)}</td>
+        <td class="num hide-sm">${p.players.size}</td><td class="num hide-sm">${acc}</td><td class="num">${p.games}</td>
+        <td class="num tot">${pts(p.total)}</td></tr>`;
+    }).join("");
   }
 
   function renderSectorBoard() {
@@ -475,6 +506,7 @@
   $("#sector").addEventListener("change", () => { setSector($("#sector").value); renderMe(); renderBoard(); });
   $("#board-sector").addEventListener("change", () => { boardSector = $("#board-sector").value; renderBoard(); });
   $("#board-race").addEventListener("change", () => { boardRace = $("#board-race").value; renderBoard(); });
+  $("#board-division").addEventListener("change", () => { boardDivision = $("#board-division").value; renderBoard(); });
   document.querySelectorAll(".tab").forEach(t => { t.onclick = () => { boardRange = t.dataset.range; renderBoard(); }; });
   document.querySelectorAll(".view").forEach(t => { t.onclick = () => { boardView = t.dataset.view; renderBoard(); }; });
   $("#again").onclick = () => start(lastCat);
@@ -617,11 +649,14 @@
     const mine = mySectors();
     document.querySelectorAll("#pf-list input").forEach(b => { b.checked = mine.includes(b.value); });
     syncAll();
-    $("#pf-title").textContent = "Your sectors";
-    $("#pf-intro").textContent = "Tick every sector you work in. Races you've already played keep the sector they were played for.";
+    $("#pf-division").value = profile.division || "";
+    $("#pf-title").textContent = profile.division ? "Your sectors and division" : "Choose your business division";
+    $("#pf-intro").textContent = profile.division
+      ? "Tick every sector you work in. Races you've already played keep the sector they were played for."
+      : "We've added business divisions to the league. Please choose yours, and check your sectors.";
     $("#pf-name").value = profile.display_name; $("#pf-name").disabled = true;
-    $("#pf-save").textContent = "Save sectors";
-    $("#pf-cancel-row").hidden = false; $("#pf-review").hidden = true; $("#pf-msg").textContent = "";
+    $("#pf-save").textContent = "Save";
+    $("#pf-cancel-row").hidden = !profile.division; $("#pf-review").hidden = true; $("#pf-msg").textContent = "";
     show("profile");
   }
 
@@ -629,25 +664,31 @@
     const name = $("#pf-name").value.trim();
     const sectors = [...document.querySelectorAll("#pf-list input:checked")].map(i => i.value);
     if (name.length < 2) return $("#pf-name").focus();
+    const division = $("#pf-division").value;
+    if (!division) { $("#pf-msg").textContent = "Choose your business division."; $("#pf-division").focus(); return; }
     if (!sectors.length) { $("#pf-msg").textContent = "Tick at least one sector."; return; }
     $("#pf-msg").textContent = "";
     $("#pf-save").disabled = true;
     if (profile) {                                   // editing sectors
       const main = sectors.includes(profile.sector) ? profile.sector : sectors[0];
-      const { data, error } = await db.from("quiz_profiles").update({ sector: main, sectors }).eq("user_id", user.id).select().single();
+      const { data, error } = await db.from("quiz_profiles").update({ sector: main, sectors, division }).eq("user_id", user.id).select().single();
       $("#pf-save").disabled = false;
-      if (error || !data) { $("#pf-msg").textContent = "Couldn't save: " + (error ? error.message : "no permission (run supabase/sectors_edit.sql)"); return; }
+      if (error || !data) { $("#pf-msg").textContent = "Couldn't save: " + (error ? error.message : "no permission (run supabase/divisions.sql)"); return; }
       profile = data;
+      if (!entered) return enterGame();            // came here straight from sign-in
+      await refreshGames();
       return renderHome();
     }
-    const { data, error } = await db.from("quiz_profiles").insert({ user_id: user.id, display_name: name, sector: sectors[0], sectors }).select().single();
+    const { data, error } = await db.from("quiz_profiles").insert({ user_id: user.id, display_name: name, sector: sectors[0], sectors, division }).select().single();
     $("#pf-save").disabled = false;
     if (error) { $("#pf-msg").textContent = "Couldn't save: " + error.message; return; }
     profile = data;
     await enterGame();
   }
 
+  let entered = false;
   async function enterGame() {
+    entered = true;
     $("#loading").hidden = false;
     const [, , appr] = await Promise.all([
       loadQuestionsOnline(),
@@ -686,6 +727,7 @@
     // New players start with every sector ticked; they untick the ones they don't work in.
     $("#pf-list").innerHTML = SECTORS.map(n => `<label><input type="checkbox" value="${esc(n)}" checked> ${esc(n)}</label>`).join("");
     $("#pf-all").checked = true;
+    $("#pf-division").innerHTML = `<option value="">Your business division…</option>` + DIVISIONS.map(n => `<option>${esc(n)}</option>`).join("");
     const boxes = () => [...document.querySelectorAll("#pf-list input")];
     $("#pf-all").onchange = () => { boxes().forEach(b => { b.checked = $("#pf-all").checked; }); };
     $("#pf-list").onchange = syncAll;
@@ -707,6 +749,7 @@
       $("#pf-review").hidden = !appr;
       $("#loading").hidden = true; $("#pf-name").value = (user.email.split("@")[0] || "").replace(/[._-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase()); return show("profile"); }
     profile = prof;
+    if (DIVISIONS.length && !prof.division) { $("#loading").hidden = true; return editSectors(); }
     await enterGame();
   }
 

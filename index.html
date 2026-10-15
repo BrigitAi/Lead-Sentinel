@@ -126,6 +126,8 @@
   tr.mine td { background: color-mix(in srgb, var(--brand) 12%, transparent); }
   tr.mine td.n::after { content: " (you)"; color: var(--brand-text); font-weight: 400; font-size: 12px; }
   .sectors tr.mine td.n::after { content: " (your sector)"; }
+  .divisions tr.mine td.n::after { content: " (your division)"; }
+  #pf-division:invalid, #pf-division.empty { color: var(--muted); }
   td.empty { text-align: center; color: var(--muted); padding: 28px 12px; }
   .scoring { margin-top: 14px; padding: 12px 16px; background: var(--pitch); border: 1px dashed var(--line); border-radius: 12px; font-size: 13px; color: var(--muted); }
   .scoring b { color: var(--text); }
@@ -334,9 +336,10 @@
   <!-- ===== FIRST-TIME PROFILE (online mode) ===== -->
   <section id="profile" class="screen gate" hidden>
     <h1 id="pf-title">Join the league</h1>
-    <p class="muted" id="pf-intro">This is how you'll appear on the leaderboard. All sectors are ticked. Untick any you don't work in. Each race counts for the sector you play it for, and you can change your sectors later.</p>
+    <p class="muted" id="pf-intro">This is how you'll appear on the leaderboard. Choose your business division, then untick any sectors you don't work in. Each race counts for the sector you play it for.</p>
     <div class="gate-form col">
       <input id="pf-name" placeholder="Display name" maxlength="30" aria-label="Display name">
+      <select id="pf-division" aria-label="Your business division"></select>
       <fieldset class="sec-pick" id="pf-sectors">
         <legend>Your sectors</legend>
         <label class="sec-all"><input type="checkbox" id="pf-all"> Select all sectors</label>
@@ -366,7 +369,7 @@
     <div class="player-bar">
       <div class="who">
         <input id="player" placeholder="Your name" maxlength="30" autocomplete="name" aria-label="Your name">
-        <label class="play-for"><span>Playing for <a href="#" id="edit-sectors" hidden>Change my sectors</a></span><select id="sector" aria-label="Sector you are playing for"></select></label>
+        <label class="play-for"><span>Playing for <a href="#" id="edit-sectors" hidden>Change my sectors or division</a></span><select id="sector" aria-label="Sector you are playing for"></select></label>
       </div>
       <div id="me" class="me" hidden></div>
     </div>
@@ -387,10 +390,12 @@
           <div class="views">
             <button class="view" data-view="players"><span data-icon="helmet"></span> Competitors</button>
             <button class="view" data-view="sectors"><span data-icon="hydrant"></span> Sectors</button>
+            <button class="view" data-view="divisions"><span data-icon="shieldCheck"></span> Divisions</button>
           </div>
           <div class="board-filters">
             <select id="board-race" class="board-sector" aria-label="Show race"></select>
             <select id="board-sector" class="board-sector" aria-label="Show sector"></select>
+            <select id="board-division" class="board-sector" aria-label="Show business division"></select>
           </div>
           <div class="tabs" role="tablist">
             <button class="tab" data-range="week">This week</button>

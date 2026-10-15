@@ -151,13 +151,14 @@
           <option value="noplay">Joined but haven't played</option>
           <option value="nopolicies">Haven't done Company Policies</option>
           <option value="active">Playing</option>
+          <option value="nodiv">No business division yet</option>
         </select>
         <input id="pl-search" type="search" placeholder="Search name or email" aria-label="Search players">
         <button class="btn" id="pl-csv" type="button">Download list (CSV)</button>
         <button class="btn" id="pl-refresh" type="button">Refresh</button>
       </div>
       <p id="pl-msg" class="muted gen-msg"></p>
-      <div class="up-scroll"><table class="req-table" style="margin-top:0"><thead><tr><th>Email</th><th>League name</th><th>Sectors</th><th>Registered</th><th>Status</th><th>Races</th><th>Points</th><th>Last played</th></tr></thead><tbody id="pl-list"></tbody></table></div>
+      <div class="up-scroll"><table class="req-table" style="margin-top:0"><thead><tr><th>Email</th><th>League name</th><th>Division</th><th>Sectors</th><th>Registered</th><th>Status</th><th>Races</th><th>Points</th><th>Last played</th></tr></thead><tbody id="pl-list"></tbody></table></div>
     </details>
     <details class="gen" id="req-panel">
       <summary><h2 style="display:inline">Required race: who has completed it</h2> <span class="muted" id="req-sum"></span></summary>
@@ -335,22 +336,22 @@
     return players.filter(p =>
       (f === "all" || (f === "unconfirmed" && !p.email_confirmed) || (f === "nojoin" && p.email_confirmed && !p.league_name)
         || (f === "noplay" && p.league_name && !p.races_played) || (f === "nopolicies" && !p.did_company_policies)
-        || (f === "active" && p.races_played > 0))
+        || (f === "active" && p.races_played > 0) || (f === "nodiv" && p.league_name && !p.division))
       && (!q || (p.email || "").toLowerCase().includes(q) || (p.league_name || "").toLowerCase().includes(q)));
   }
   function renderPlayers() {
     const rows = plRows();
     $("#pl-list").innerHTML = rows.length ? rows.map(p => {
       const [cls, label] = plStatus(p);
-      return `<tr><td>${esc(p.email)}</td><td>${esc(p.league_name || "–")}</td><td class="muted">${esc(p.sectors || "–")}</td>
+      return `<tr><td>${esc(p.email)}</td><td>${esc(p.league_name || "–")}</td><td>${esc(p.division || "–")}</td><td class="muted">${esc(p.sectors || "–")}</td>
         <td>${saDay(p.registered_at)}</td><td><span class="pill ${cls}">${label}</span>${p.did_company_policies ? ` <span class="pill ok" title="Completed Company Policies">✓ Policies</span>` : ""}</td>
         <td>${p.races_played}</td><td>${Number(p.points).toLocaleString("en-ZA")}</td><td>${saDay(p.last_played)}</td></tr>`;
-    }).join("") : `<tr><td colspan="8" class="muted">Nobody in this list.</td></tr>`;
+    }).join("") : `<tr><td colspan="9" class="muted">Nobody in this list.</td></tr>`;
   }
   function downloadPlayers() {
     const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const head = ["Email", "League name", "Sectors", "Registered (SA time)", "Email confirmed", "Joined league", "Status", "Races played", "Points", "Last played (SA time)", "Last sign-in (SA time)", "Completed Company Policies"];
-    const lines = plRows().map(p => [p.email, p.league_name || "", p.sectors || "", sa(p.registered_at), p.email_confirmed ? "Yes" : "No",
+    const head = ["Email", "League name", "Business division", "Sectors", "Registered (SA time)", "Email confirmed", "Joined league", "Status", "Races played", "Points", "Last played (SA time)", "Last sign-in (SA time)", "Completed Company Policies"];
+    const lines = plRows().map(p => [p.email, p.league_name || "", p.division || "", p.sectors || "", sa(p.registered_at), p.email_confirmed ? "Yes" : "No",
       p.league_name ? "Yes" : "No", plStatus(p)[1], p.races_played, p.points, sa(p.last_played), sa(p.last_sign_in), p.did_company_policies ? "Yes" : "No"].map(q).join(","));
     const csv = "\ufeff" + [head.map(q).join(","), ...lines].join("\r\n");
     const a = document.createElement("a");
