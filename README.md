@@ -111,6 +111,7 @@ The publishable key in `config.js` is designed to be public. Never put a secret 
 | `quiz_stats_play_hours` / `quiz_stats_play_times` | What time of day (and weekday) people play most |
 | `quiz_stats_required_completion` | Who has / hasn't completed Company Policies |
 | `quiz_stats_summary()` | All of the above in one JSON call |
+| `quiz_leaderboard_table(period, top, division, sector, race, view)` | A ready-to-show Markdown leaderboard table for ASH's answers (period: season/month/week; view: competitors/sectors/divisions) |
 
 Question-level stats come from `quiz_answers`, which the game fills from the moment stats.sql is run.
 

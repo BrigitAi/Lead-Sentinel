@@ -29,6 +29,7 @@ revoke all on public.quiz_answers from anon;
 
 -- Start clean so the views can be re-created safely
 drop function if exists public.quiz_stats_summary();
+drop function if exists public.quiz_leaderboard_table(text, integer, text, text, text, text);
 drop view if exists public.quiz_stats_leaderboard, public.quiz_stats_leaderboard_by_sector, public.quiz_stats_sectors,
   public.quiz_stats_most_played, public.quiz_stats_question_repeats, public.quiz_stats_questions,
   public.quiz_stats_play_hours, public.quiz_stats_play_times, public.quiz_stats_required_completion, public.quiz_stats_divisions, public.quiz_stats_races cascade;
@@ -173,3 +174,77 @@ revoke all on public.quiz_stats_races, public.quiz_stats_leaderboard, public.qui
   public.quiz_stats_required_completion from anon;
 revoke all on function public.quiz_stats_summary() from public, anon;
 grant execute on function public.quiz_stats_summary() to authenticated, service_role;
+
+-- 6) READY-TO-SHOW LEADERBOARD for ASH (a Markdown table ASH can paste straight into its answer)
+--    period: 'season' (default), 'month' or 'week'
+--    top:    how many rows (default 10, max 50)
+--    division / sector / race: optional filters, e.g. division => 'Sales', race => 'Company Policies'
+--    view:   'competitors' (default), 'sectors' or 'divisions'
+create or replace function public.quiz_leaderboard_table(
+  period text default 'season', top integer default 10,
+  division text default null, sector text default null, race text default null,
+  view text default 'competitors')
+returns text language plpgsql stable security invoker set search_path = public as $$
+declare
+  since timestamp;
+  label text;
+  out_md text;
+  n int := greatest(1, least(coalesce(top, 10), 50));
+  grp text := lower(coalesce(view, 'competitors'));
+begin
+  -- empty text or "all" from the agent means "no filter"
+  division := case when lower(trim(coalesce(division, ''))) in ('', 'all', 'any', 'null', 'none') then null else trim(division) end;
+  sector   := case when lower(trim(coalesce(sector, '')))   in ('', 'all', 'any', 'null', 'none') then null else trim(sector) end;
+  race     := case when lower(trim(coalesce(race, '')))     in ('', 'all', 'any', 'null', 'none') then null else trim(race) end;
+  grp      := case when grp in ('sector', 'sectors') then 'sectors' when grp in ('division', 'divisions') then 'divisions' else 'competitors' end;
+  case lower(coalesce(nullif(trim(period), ''), 'season'))
+    when 'week'  then since := (now() at time zone 'Africa/Johannesburg') - interval '7 days'; label := 'last 7 days';
+    when 'month' then since := date_trunc('month', now() at time zone 'Africa/Johannesburg'); label := 'this month';
+    else              since := '-infinity'; label := 'season';
+  end case;
+  label := label || coalesce(' · ' || race, '') || coalesce(' · ' || division, '') || coalesce(' · ' || sector, '');
+
+  if grp in ('sectors', 'divisions') then
+    with f as (
+      select * from quiz_stats_races r
+      where r.played_at_sa >= since
+        and (quiz_leaderboard_table.race is null or r.race ilike quiz_leaderboard_table.race)
+        and (quiz_leaderboard_table.division is null or r.division ilike quiz_leaderboard_table.division)
+        and (quiz_leaderboard_table.sector is null or r.sector ilike quiz_leaderboard_table.sector)
+    ), g as (
+      select case when grp = 'sectors' then f.sector else f.division end as name,
+             sum(points) as pts, count(*) as races, count(distinct user_id) as players,
+             round(100.0 * sum(correct) / nullif(sum(asked), 0)) as acc,
+             row_number() over (order by sum(points) desc) as rn
+      from f group by 1 order by pts desc limit n
+    )
+    select string_agg(format('| %s | %s | %s | %s | %s | %s |',
+             rn, name, to_char(pts, 'FM999G999G990'), players, races, coalesce(acc::text || '%', '–')),
+             E'\n' order by rn)
+    into out_md from g;
+    return format(E'**Brigit Trivia League — %s (%s)**\n\n| # | %s | Points | Players | Races | Accuracy |\n|---|---|---|---|---|---|\n%s',
+                  initcap(grp), label, case when grp = 'sectors' then 'Sector' else 'Division' end,
+                  coalesce(out_md, '| – | No races yet | | | | |'));
+  end if;
+
+  with f as (
+    select * from quiz_stats_races r
+    where r.played_at_sa >= since
+      and (quiz_leaderboard_table.race is null or r.race ilike quiz_leaderboard_table.race)
+      and (quiz_leaderboard_table.division is null or r.division ilike quiz_leaderboard_table.division)
+      and (quiz_leaderboard_table.sector is null or r.sector ilike quiz_leaderboard_table.sector)
+  ), g as (
+    select competitor, max(f.division) as div, string_agg(distinct f.sector, ', ') as secs,
+           sum(points) as pts, count(*) as races, round(100.0 * sum(correct) / nullif(sum(asked), 0)) as acc,
+           row_number() over (order by sum(points) desc) as rn
+    from f group by user_id, competitor order by pts desc limit n
+  )
+  select string_agg(format('| %s | %s | %s | %s | %s | %s | %s |',
+           rn, competitor, div, secs, to_char(pts, 'FM999G999G990'), races, coalesce(acc::text || '%', '–')),
+           E'\n' order by rn)
+  into out_md from g;
+  return format(E'**Brigit Trivia League — leaderboard (%s)**\n\n| # | Competitor | Division | Sector(s) | Points | Races | Accuracy |\n|---|---|---|---|---|---|---|\n%s',
+                label, coalesce(out_md, '| – | No races yet | | | | | |'));
+end $$;
+revoke all on function public.quiz_leaderboard_table(text, integer, text, text, text, text) from public, anon;
+grant execute on function public.quiz_leaderboard_table(text, integer, text, text, text, text) to authenticated, service_role;
