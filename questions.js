@@ -40,6 +40,7 @@ window.SECTORS = [
 // Business divisions — every competitor picks ONE when joining
 window.DIVISIONS = [
   "Finance/Admin",
+  "Operations",
   "Procurement",
   "Production",
   "Sales"

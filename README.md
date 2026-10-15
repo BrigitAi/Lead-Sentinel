@@ -12,7 +12,7 @@ When competitors join, every sector starts ticked; they untick the ones they don
 Technical Johannesburg · Exports · Passive Fire Containment · Special Risk · Sprinklers & Valves · Fire Detection · Gas Suppression · Portable Extinguishers
 
 ## Business divisions
-Separate from sectors: every competitor picks **one** business division when joining: Finance/Admin, Procurement, Production or Sales. Existing players without one are asked at their next sign-in. The league table shows each player's division, has a division filter, and a **Divisions** tab with division totals. Edit the list in `questions.js` (`DIVISIONS`) and `quiz_division_list()` in Supabase.
+Separate from sectors: every competitor picks **one** business division when joining: Finance/Admin, Operations, Procurement, Production or Sales. Existing players without one are asked at their next sign-in. The league table shows each player's division, has a division filter, and a **Divisions** tab with division totals. Edit the list in `questions.js` (`DIVISIONS`) and `quiz_division_list()` in Supabase.
 
 ## Scoring
 - **100 points** per correct answer
@@ -51,6 +51,7 @@ After every answer the explanation and reference (SANS standard, SDS section, ma
 | `supabase/players.sql` | Registered players list for approvers on review.html (run once) |
 | `supabase/stats.sql` | Stats views for ASH and reports, plus the per-answer log (run once) |
 | `supabase/divisions.sql` | Business divisions (Finance/Admin, Procurement, Production, Sales); lists live in `quiz_sector_list()` / `quiz_division_list()` (run once) |
+| `supabase/generators.sql` | Who may generate questions (`quiz_generators`), Deon as approver, Operations division (run once) |
 | `supabase/generate.sql` | Support for the question generator (run once after schema.sql) |
 | `supabase/functions/quiz-generate/index.ts` | Edge Function that writes new draft questions with AI |
 
@@ -84,6 +85,8 @@ On `review.html`, approvers can edit, approve or reject each draft, or click **A
 **Upload your own questions:** download the Excel template, fill in one question per row (library, question, correct answer, 3 wrong answers, explanation, reference), then upload the .xlsx or .csv file. A preview flags problems (unknown library, missing answers, duplicates) before anything is saved. Questions are added as drafts, or approved straight away if that box is ticked.
 
 ## Generating new questions
+Only people listed in `quiz_generators` (Donald Barnard, Deon van Zyl and the admin account) see the **Generate** panel and can call the generator. Other approvers can still edit, approve, reject and upload.
+
 Approvers see a **Generate new questions** panel at the top of `review.html`. They pick a library (or *All libraries*) and how many questions, then click **Generate**. The Edge Function picks unused, substantive passages from ASH's library, asks an AI model for one multiple-choice question per passage, and saves them as **drafts**. Nothing goes live until an approver approves it. Each passage is used only once.
 
 One-time setup:

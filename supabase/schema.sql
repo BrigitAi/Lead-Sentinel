@@ -17,7 +17,7 @@ create or replace function public.quiz_sector_list() returns text[] language sql
 $$;
 -- ---------- Business divisions (one per competitor) ----------
 create or replace function public.quiz_division_list() returns text[] language sql immutable as $$
-  select array['Finance/Admin','Procurement','Production','Sales']::text[];
+  select array['Finance/Admin','Operations','Procurement','Production','Sales']::text[];
 $$;
 
 -- ---------- Competitor profiles ----------
@@ -124,6 +124,7 @@ insert into public.quiz_approvers (email, name) values
   ('donald@brigit.co.za', 'Donald'),
   ('corne@brigit.co.za',  'Corne'),
   ('feri@brigit.co.za',   'Feri'),
+  ('deon@brigit.co.za',   'Deon van Zyl'),
   ('sysproai@elveygroup.com', 'Admin (Elvey Group)')
 on conflict (email) do update set name = excluded.name;
 

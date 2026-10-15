@@ -15,7 +15,7 @@ create or replace function public.quiz_sector_list() returns text[] language sql
                'Sprinklers & Valves','Fire Detection','Gas Suppression','Portable Extinguishers']::text[];
 $$;
 create or replace function public.quiz_division_list() returns text[] language sql immutable as $$
-  select array['Finance/Admin','Procurement','Production','Sales']::text[];
+  select array['Finance/Admin','Operations','Procurement','Production','Sales']::text[];
 $$;
 
 -- ---------- Profiles: add division, tidy sectors ----------

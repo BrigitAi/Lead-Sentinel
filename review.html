@@ -108,7 +108,7 @@
   <div id="gate" class="gate"><p class="muted">Loading…</p></div>
 
   <div id="main" hidden>
-    <div class="gen">
+    <div class="gen" id="gen-panel" hidden>
       <div>
         <h2>Generate new questions</h2>
         <p class="muted">Writes new draft questions from unused passages in ASH's library. They appear under Drafts for approval.</p>
@@ -224,6 +224,7 @@
     $("#gen-lib").innerHTML = `<option value="all">All libraries</option>` +
       LIBS.filter(l => l.id !== "certification").map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join("");
     $("#gen-go").onclick = generate;
+    db.rpc("quiz_can_generate").then(({ data }) => { $("#gen-panel").hidden = !data; });
     $("#req-filter").onchange = renderRequired;
     $("#pl-filter").onchange = renderPlayers;
     $("#pl-search").oninput = renderPlayers;
