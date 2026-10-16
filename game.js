@@ -3,7 +3,7 @@
 
   /* ---------------- Setup ---------------- */
   const S = Object.assign(
-    { title: "Trivia League", subtitle: "", secondsPerQuestion: 20, questionsPerRound: 10, basePoints: 100, maxSpeedBonus: 100 },
+    { title: "Trivia League", subtitle: "", secondsPerQuestion: 25, questionsPerRound: 10, basePoints: 100, maxSpeedBonus: 100 },
     window.GAME_SETTINGS || {}
   );
   const CATS = (window.QUIZ_CATEGORIES || []).map(c => ({
@@ -382,7 +382,7 @@
 
   function startTimer() {
     clearInterval(timerId);
-    const total = (+S.secondsPerQuestion || 20) * 1000;
+    const total = (+S.secondsPerQuestion || 25) * 1000;
     const t0 = performance.now();
     st.timeLeft = 1;
     const bar = $("#timebar"), txt = $("#timetxt");

@@ -19,7 +19,7 @@
 window.GAME_SETTINGS = {
   title: "Brigit Trivia League",
   subtitle: "Train your brain. Beat your PB. Top the leaderboard.",
-  secondsPerQuestion: 20,   // time per question
+  secondsPerQuestion: 25,   // time per question
   questionsPerRound: 10,    // questions in one round
   basePoints: 100,          // points for a correct answer
   maxSpeedBonus: 100        // sprint bonus for answering fast (scales with time left)
